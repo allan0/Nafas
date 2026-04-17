@@ -1,14 +1,5 @@
-{
-  "yoga": [
-    {"pose": "Vrikshasana (Tree Pose)", "benefit": "Balance and focus for stressful workdays in Dubai Media City.", "level": "Beginner"}
-  ],
-  "endurance": [
-    {"secret": "Nasal Breathing", "detail": "Mastering breathing through the nose during the first 2km of a run lowers the heart rate.", "context": "Crucial for high-humidity UAE mornings."}
-  ],
-  "dental": [
-    {"tip": "Xylitol usage", "detail": "Using Xylitol after meals in the UAE (where dates/sweets are common) prevents acid attacks on enamel."}
-  ],
-  "smoking_cessation": [
-    {"method": "The 5-Minute Delay", "detail": "When the urge hits, wait 5 minutes and perform a 'Box Breathing' cycle."}
-  ]
+"analytics_pro": {
+  "recovery_score": "Calculated via Heart Rate Variability (HRV) and deep sleep cycles (REM).",
+  "breath_efficiency": "Correlation between nasal breathing duration and VO2 Max improvement.",
+  "social_impact": "Tokens earned via community tipping vs. individual exercise."
 }
