@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/* Your custom styles below */
+body {
+  background: linear-gradient(to bottom, #A5D8F8, #7CC6E8, #A8E6B8);
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+.cloud {
+  position: absolute;
+  background: white;
+  border-radius: 9999px;
+  opacity: 0.85;
+  animation: drift 25s linear infinite;
+  box-shadow: 0 10px 30px rgba(255,255,255,0.6);
+}
+
+@keyframes drift {
+  0% { transform: translateX(-100px); }
+  100% { transform: translateX(400px); }
+}
+
+/* Wave bottom nav */
+.wave-nav {
+  background: linear-gradient(to top, #68D4B8, #4ECDC4);
+  border-top-left-radius: 30px;
+  border-top-right-radius: 30px;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.1);
+}
