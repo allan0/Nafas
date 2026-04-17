@@ -1,22 +1,9 @@
-# Python
-venv/
-__pycache__/
-*.pyc
-.env
-
-# Node.js
 node_modules/
 .next/
-out/
-build/
 dist/
-
-# Hardhat/Blockchain
-artifacts/
-cache/
-typechain/
-typechain-types/
-
-# System
-.DS_Store
-*.log
+build/
+venv/
+.env*
+frontend/.next/
+blockchain/artifacts/
+blockchain/cache/
