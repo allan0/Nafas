@@ -1,0 +1,12 @@
+#include "stdlib.fc";
+
+() recv_internal(int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    ;; Simple mintable Jetton for Nafas
+    throw_unless(100, in_msg_body.slice_empty?());  ;; placeholder
+}
+
+() recv_external() impure {
+}
+
+() on_bounce(slice in_msg_body) impure {
+}
