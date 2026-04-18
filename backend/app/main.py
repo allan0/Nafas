@@ -1,67 +1,58 @@
 import os
+import sys
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-# Try to import AI logic safely
+# Add backend to Python path so 'core' can be found
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Safe AI import
 try:
     from core.ai_logic import NafasProAI
     nafas_ai = NafasProAI()
-    print("✅ NafasProAI initialized successfully")
+    print("✅ Nafas AI initialized successfully")
 except Exception as e:
     nafas_ai = None
-    print(f"⚠️ AI initialization failed: {e}. Running in fallback mode.")
+    print(f"⚠️ AI failed to initialize: {e}. Running in fallback mode.")
 
-# Load core data
+# Load activities from core_data
 def load_core_data():
     data = {"activities": []}
     base_path = os.path.join(os.path.dirname(__file__), "core_data")
     
-    files = ["wellness_knowledge.json", "endurance_secrets.json", "dental_wellness.json"]
-    for filename in files:
-        try:
-            with open(os.path.join(base_path, filename), "r", encoding="utf-8") as f:
-                content = json.load(f)
-                # Simple flattening for now
-                if isinstance(content, dict) and "yoga" in content:
-                    for item in content.get("yoga", []):
-                        data["activities"].append({
-                            "id": f"yoga-{len(data['activities'])}",
-                            "title": item.get("pose", "Yoga Pose"),
-                            "category": "Yoga",
-                            "tokens": 30,
-                            "duration": "8 min",
-                            "difficulty": "Easy",
-                            "detail": item.get("benefit", ""),
-                            "uae_context": item.get("uae_context", "")
-                        })
-                elif isinstance(content, list):
-                    for item in content:
-                        data["activities"].append({
-                            "id": f"item-{len(data['activities'])}",
-                            "title": item.get("topic", item.get("pose", "Activity")),
-                            "category": "Wellness",
-                            "tokens": 50,
-                            "duration": "15 min",
-                            "difficulty": "Medium",
-                            "detail": item.get("detail", item.get("secret", "")),
-                            "uae_context": item.get("uae_context", "UAE friendly")
-                        })
-        except Exception as e:
-            print(f"Warning loading {filename}: {e}")
+    try:
+        # wellness_knowledge.json
+        with open(os.path.join(base_path, "wellness_knowledge.json"), encoding="utf-8") as f:
+            knowledge = json.load(f)
+            for item in knowledge.get("yoga", []):
+                data["activities"].append({
+                    "id": f"yoga-{len(data['activities'])}",
+                    "title": item.get("pose", "Yoga Pose"),
+                    "category": "Yoga",
+                    "tokens": 30,
+                    "duration": "8 min",
+                    "difficulty": "Easy",
+                    "detail": item.get("benefit", ""),
+                    "uae_context": item.get("uae_context", "")
+                })
+    except Exception as e:
+        print(f"Warning loading wellness data: {e}")
 
+    # Fallback if nothing loaded
     if not data["activities"]:
         data["activities"] = [{
             "id": "fallback-1",
-            "title": "Box Breathing",
+            "title": "Box Breathing (4-7-8)",
             "category": "Yoga",
             "tokens": 20,
             "duration": "5 min",
             "difficulty": "Easy",
-            "detail": "4-7-8 breathing technique",
-            "uae_context": "Perfect for hot weather"
+            "detail": "Calming breath technique",
+            "uae_context": "Perfect for Dubai heat"
         }]
+    
     return data
 
 CORE_ACTIVITIES = load_core_data()
@@ -100,13 +91,17 @@ async def recommend(query: UserQuery):
                     "detail": parsed.get("plan", ""),
                     "benefit": parsed.get("safety_tip", "")
                 }],
-                "ai_mode": True
+                "ai_mode": True,
+                "weather": f"{temp}°C • {humidity}%"
             }
-        except:
-            pass
+        except Exception as e:
+            print(f"AI error: {e}")
 
-    # Fallback
-    return {"status": "success", "recommendations": [{"detail": "Take a deep breath and stay consistent."}], "ai_mode": False}
+    return {
+        "status": "success", 
+        "recommendations": [{"detail": "Take a deep breath and stay consistent with your wellness goals."}], 
+        "ai_mode": False
+    }
 
 @app.get("/activities")
 async def get_activities():
@@ -115,13 +110,13 @@ async def get_activities():
 @app.post("/mint")
 async def mint_naf(request: MintRequest):
     if not request.wallet_address or len(request.wallet_address) < 10:
-        raise HTTPException(400, "Invalid wallet address")
+        raise HTTPException(status_code=400, detail="Invalid TON wallet address")
     
-    print(f"Minting {request.amount} $NAF for activity {request.activity_id} to {request.wallet_address}")
+    print(f"✅ Mint request: {request.amount} $NAF for activity {request.activity_id} → {request.wallet_address}")
     
     return {
         "status": "success",
-        "message": f"Minted {request.amount} $NAF",
+        "message": f"Successfully minted {request.amount} $NAF",
         "activity_id": request.activity_id,
         "wallet": request.wallet_address
     }
@@ -131,5 +126,6 @@ async def health():
     return {
         "status": "Nafas API Online",
         "ai_ready": nafas_ai is not None,
-        "activities_count": len(CORE_ACTIVITIES["activities"])
+        "activities_count": len(CORE_ACTIVITIES["activities"]),
+        "python_path": sys.path[0]
     }
