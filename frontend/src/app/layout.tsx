@@ -1,12 +1,28 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { Lexend } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import Providers from "./providers";
 
+// Premium Geometric Font
+const lexend = Lexend({ 
+  subsets: ["latin"],
+  weight: ['300', '400', '600'],
+  variable: '--font-lexend',
+});
+
+// Essential for Telegram Mini Apps to prevent zooming and fix height
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+};
+
 export const metadata: Metadata = {
   title: "Nafas Wellness",
-  description: "Breathe Better, Live Better - Powered by TON & AI",
-  icons: { icon: "/favicon.ico" },
+  description: "The Pulse of UAE Wellness",
 };
 
 export default function RootLayout({
@@ -15,22 +31,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-gradient-to-b from-[#A5D8F8] via-[#7CC6E8] to-[#A8E6B8] text-slate-800 overflow-hidden relative">
-        {/* Floating Clouds */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-          <div className="cloud w-32 h-20 top-12 left-10" style={{animationDelay: "0s"}}></div>
-          <div className="cloud w-24 h-16 top-28 right-20" style={{animationDelay: "8s"}}></div>
-          <div className="cloud w-40 h-24 top-40 left-1/3" style={{animationDelay: "15s"}}></div>
-          <div className="cloud w-28 h-18 top-60 right-1/4" style={{animationDelay: "22s"}}></div>
+    <html lang="en" className={lexend.variable}>
+      <body className="font-sans antialiased premium-bg overflow-x-hidden select-none">
+        
+        {/* Global Atmospheric Auras (The "Real" Clouds) */}
+        {/* These sit behind everything to create depth */}
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          <div className="aura-blur w-[500px] h-[500px] bg-white/40 -top-20 -left-20 animate-pulse" />
+          <div className="aura-blur w-[400px] h-[400px] bg-blue-200/30 top-1/2 -right-20" />
+          <div className="aura-blur w-[600px] h-[600px] bg-emerald-100/20 -bottom-20 left-1/2 -translate-x-1/2" />
         </div>
 
         <Providers>
-          <main className="pb-20 min-h-screen relative z-10">
+          {/* Main Content Area */}
+          <main className="relative z-10 min-h-[100dvh]">
             {children}
           </main>
+
+          {/* Floating Navigation */}
           <BottomNav />
         </Providers>
+
       </body>
     </html>
   );

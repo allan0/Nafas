@@ -1,30 +1,47 @@
 @import "tailwindcss";
 
-/* Your custom styles below */
-body {
-  background: linear-gradient(to bottom, #A5D8F8, #7CC6E8, #A8E6B8);
-  font-family: system-ui, -apple-system, sans-serif;
-  overflow-x: hidden;
+@layer base {
+  :root {
+    --sky-top: #A5D8F8;
+    --sky-bottom: #fcf6f9;
+  }
+
+  body {
+    @apply antialiased text-slate-900;
+    /* Atmospheric Background */
+    background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
 }
 
-.cloud {
-  position: absolute;
-  background: white;
-  border-radius: 9999px;
-  opacity: 0.85;
-  animation: drift 25s linear infinite;
-  box-shadow: 0 10px 30px rgba(255,255,255,0.6);
-}
+@layer components {
+  /* Premium Glassmorphism Effect */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  }
 
-@keyframes drift {
-  0% { transform: translateX(-100px); }
-  100% { transform: translateX(400px); }
-}
+  /* Realistic Floating Cloud/Aura Effect */
+  .aura-blur {
+    position: absolute;
+    filter: blur(80px);
+    border-radius: 50%;
+    z-index: -1;
+    opacity: 0.6;
+    animation: float 20s infinite alternate ease-in-out;
+  }
 
-/* Wave bottom nav */
-.wave-nav {
-  background: linear-gradient(to top, #68D4B8, #4ECDC4);
-  border-top-left-radius: 30px;
-  border-top-right-radius: 30px;
-  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.1);
+  @keyframes float {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(20px, 40px) scale(1.1); }
+  }
+
+  /* Hide scrollbars for a clean app feel */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

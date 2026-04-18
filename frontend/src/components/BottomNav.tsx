@@ -3,40 +3,66 @@
 import { Home, Leaf, Users, Sparkles, User } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import TelegramWebApp from '@twa-dev/sdk';
 
 const navItems = [
   { name: 'Home', icon: Home, path: '/' },
-  { name: 'Activities', icon: Leaf, path: '/activities' },
-  { name: 'Community', icon: Users, path: '/community' },
-  { name: 'AI', icon: Sparkles, path: '/ai' },
-  { name: 'Profile', icon: User, path: '/profile' },
+  { name: 'Flow', icon: Leaf, path: '/activities' },
+  { name: 'Tribe', icon: Users, path: '/community' },
+  { name: 'Coach', icon: Sparkles, path: '/ai' },
+  { name: 'Self', icon: User, path: '/profile' },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const [active, setActive] = useState('/');
+  const [haptic, setHaptic] = useState<any>(null);
 
   useEffect(() => {
-    setActive(pathname);
-  }, [pathname]);
+    if (typeof window !== 'undefined') {
+      setHaptic(TelegramWebApp.HapticFeedback);
+    }
+  }, []);
+
+  const navigateTo = (path: string) => {
+    if (pathname === path) return;
+    
+    // Premium Haptic: "Selection Changed" light vibration
+    haptic?.selectionChanged();
+    router.push(path);
+  };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 wave-nav py-3 px-6">
-      <div className="flex justify-around items-center max-w-md mx-auto">
+    <div className="fixed bottom-8 left-0 right-0 z-50 px-6">
+      <div className="max-w-md mx-auto glass-card rounded-[2.5rem] p-2 flex justify-around items-center border-white/40 shadow-2xl">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = active === item.path;
+          const isActive = pathname === item.path;
+
           return (
             <button
               key={item.path}
-              onClick={() => router.push(item.path)}
-              className={`flex flex-col items-center transition-all duration-300 ${isActive ? 'text-white scale-110' : 'text-white/70 hover:text-white'}`}
+              onClick={() => navigateTo(item.path)}
+              className={`relative flex flex-col items-center justify-center w-14 h-14 transition-all duration-500 rounded-3xl ${
+                isActive ? 'text-slate-900 scale-110' : 'text-slate-400 hover:text-slate-600'
+              }`}
             >
-              <div className={`p-2 rounded-full ${isActive ? 'bg-white/20' : ''}`}>
-                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              </div>
-              <span className="text-[10px] mt-1 font-medium tracking-wide">{item.name}</span>
+              {/* Active Glow Indicator */}
+              {isActive && (
+                <div className="absolute inset-0 bg-white/60 rounded-3xl blur-md -z-10 animate-pulse" />
+              )}
+              
+              <Icon 
+                size={22} 
+                strokeWidth={isActive ? 2.5 : 1.5} 
+                className="transition-transform duration-300"
+              />
+              
+              <span className={`text-[8px] font-bold uppercase tracking-widest mt-1 transition-opacity duration-300 ${
+                isActive ? 'opacity-100' : 'opacity-0'
+              }`}>
+                {item.name}
+              </span>
             </button>
           );
         })}
