@@ -20,15 +20,20 @@ export default function BottomNav() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setHaptic(TelegramWebApp.HapticFeedback);
+      const tg = TelegramWebApp;
+      tg.ready();
+      setHaptic(tg.HapticFeedback);
     }
   }, []);
 
   const navigateTo = (path: string) => {
     if (pathname === path) return;
-    
-    // Premium Haptic: "Selection Changed" light vibration
-    haptic?.selectionChanged();
+
+    // Premium Telegram haptic feedback on navigation
+    if (haptic) {
+      haptic.selectionChanged();
+    }
+
     router.push(path);
   };
 
@@ -44,7 +49,9 @@ export default function BottomNav() {
               key={item.path}
               onClick={() => navigateTo(item.path)}
               className={`relative flex flex-col items-center justify-center w-14 h-14 transition-all duration-500 rounded-3xl ${
-                isActive ? 'text-slate-900 scale-110' : 'text-slate-400 hover:text-slate-600'
+                isActive 
+                  ? 'text-slate-900 scale-110' 
+                  : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               {/* Active Glow Indicator */}

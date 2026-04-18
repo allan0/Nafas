@@ -1,18 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Heart, 
   MessageCircle, 
-  Share2, 
   Gift, 
   Play, 
   Users, 
   ChevronRight,
-  TrendingUp,
   Award
 } from 'lucide-react';
 import { useTonConnectUI } from '@tonconnect/ui-react';
+import TelegramWebApp from '@twa-dev/sdk';
 
 // --- TYPES ---
 interface Creator {
@@ -24,11 +23,24 @@ interface Creator {
   isLive: boolean;
   content: string;
   tags: string[];
+  tonAddress: string; // Real TON address for tipping
 }
 
 export default function CommunityPage() {
   const [tonConnectUI] = useTonConnectUI();
   const [activeTab, setActiveTab] = useState<'live' | 'feed'>('live');
+  const [haptic, setHaptic] = useState<any>(null);
+  const [tipping, setTipping] = useState<string | null>(null);
+
+  // Initialize Telegram + Haptics
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const tg = TelegramWebApp;
+      tg.ready();
+      tg.expand();
+      setHaptic(tg.HapticFeedback);
+    }
+  }, []);
 
   const creators: Creator[] = [
     { 
@@ -39,7 +51,8 @@ export default function CommunityPage() {
       viewers: 124, 
       isLive: true, 
       content: 'Morning Vinyasa focusing on cooling breath for the Dubai heat.',
-      tags: ['Yoga', 'UAE Nature']
+      tags: ['Yoga', 'UAE Nature'],
+      tonAddress: "EQD...REPLACE_WITH_REAL_CREATOR_ADDRESS_1" // TODO: Replace with real TON addresses
     },
     { 
       id: 'c2', 
@@ -49,7 +62,8 @@ export default function CommunityPage() {
       viewers: 89, 
       isLive: true, 
       content: 'Talking about hydration strategies for the Dubai Fitness Challenge.',
-      tags: ['Endurance', 'Cycling']
+      tags: ['Endurance', 'Cycling'],
+      tonAddress: "EQD...REPLACE_WITH_REAL_CREATOR_ADDRESS_2"
     },
     { 
       id: 'c3', 
@@ -58,35 +72,61 @@ export default function CommunityPage() {
       title: 'Holistic Dental Tips', 
       isLive: false, 
       content: 'Why oil pulling is the secret to a brighter smile in 30 days.',
-      tags: ['Wellness', 'Dental']
+      tags: ['Wellness', 'Dental'],
+      tonAddress: "EQD...REPLACE_WITH_REAL_CREATOR_ADDRESS_3"
     }
   ];
 
-  // --- TON TRANSACTION LOGIC ---
-  const handleTip = async (creatorAddress: string, amount: number) => {
+  // Handle real TON tipping
+  const handleTip = async (creator: Creator, amount: number) => {
     if (!tonConnectUI.connected) {
-      alert("Connect your TON wallet to tip creators!");
+      haptic?.notificationOccurred('error');
+      alert("Please connect your TON wallet to send tips!");
       return;
     }
 
-    // This is the production-ready TON transaction payload
+    if (!creator.tonAddress || creator.tonAddress.includes("REPLACE")) {
+      haptic?.notificationOccurred('error');
+      alert("Creator TON address not configured yet. Coming soon!");
+      return;
+    }
+
+    setTipping(creator.id);
+    haptic?.impactOccurred('medium');
+
+    // TON Transaction payload (real $NAF tipping)
     const transaction = {
-      validUntil: Math.floor(Date.now() / 1000) + 60, // 60 seconds
+      validUntil: Math.floor(Date.now() / 1000) + 60,
       messages: [
         {
-          address: creatorAddress, // In production, this is the creator's TON address
-          amount: (amount * 100000000).toString(), // Converting NAF to nanotokens (example)
-          // payload: "..." // You can add a comment/memo here
+          address: creator.tonAddress,
+          amount: (amount * 1000000000).toString(), // nanotons (adjust for $NAF decimals)
+          payload: "" // Optional memo can be added here later
         },
       ],
     };
 
     try {
       const result = await tonConnectUI.sendTransaction(transaction);
-      alert(`Successfully tipped ${amount} $NAF! \nTx: ${result.boc.slice(0, 10)}...`);
-    } catch (e) {
+      
+      haptic?.notificationOccurred('success');
+      
+      alert(`🎉 Successfully tipped ${amount} $NAF to ${creator.name}!\n\nTx: ${result.boc.slice(0, 12)}...`);
+
+      console.log(`Tipped ${amount} $NAF to ${creator.name}`, result);
+
+    } catch (e: any) {
       console.error("Transaction failed", e);
+      haptic?.notificationOccurred('error');
+      alert("Transaction cancelled or failed. Please try again.");
+    } finally {
+      setTipping(null);
     }
+  };
+
+  const handleTabChange = (tab: 'live' | 'feed') => {
+    setActiveTab(tab);
+    haptic?.selectionChanged();
   };
 
   return (
@@ -94,17 +134,17 @@ export default function CommunityPage() {
       {/* Community Header */}
       <div className="bg-white p-6 pt-12 rounded-b-[3rem] shadow-sm border-b border-slate-100">
         <h1 className="text-3xl font-black text-slate-900 mb-2">SocialFi</h1>
-        <p className="text-slate-500 text-sm mb-6">Support your favorite wellness creators</p>
+        <p className="text-slate-500 text-sm mb-6">Support your favorite UAE wellness creators</p>
         
         <div className="flex bg-slate-100 p-1.5 rounded-2xl">
           <button 
-            onClick={() => setActiveTab('live')}
+            onClick={() => handleTabChange('live')}
             className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'live' ? 'bg-white shadow-md text-emerald-600' : 'text-slate-500'}`}
           >
             Live Now
           </button>
           <button 
-            onClick={() => setActiveTab('feed')}
+            onClick={() => handleTabChange('feed')}
             className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'feed' ? 'bg-white shadow-md text-emerald-600' : 'text-slate-500'}`}
           >
             Feed
@@ -121,7 +161,7 @@ export default function CommunityPage() {
                 <div className="h-56 bg-gradient-to-br from-slate-900 to-slate-800 relative group">
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center group-hover:scale-110 transition">
-                      <Play className="text-white fill-white ml-1" />
+                      <Play className="text-white fill-white ml-1" size={32} />
                     </div>
                   </div>
                   <div className="absolute top-4 left-4 flex gap-2">
@@ -155,14 +195,17 @@ export default function CommunityPage() {
                     {creator.content}
                   </p>
 
+                  {/* Tip Buttons - Real TON */}
                   <div className="flex gap-2">
-                    {[10, 50, 100].map(amt => (
+                    {[10, 50, 100].map((amt) => (
                       <button 
                         key={amt}
-                        onClick={() => handleTip("EQD...REPLACE_WITH_ADDRESS", amt)}
-                        className="flex-1 bg-emerald-50 hover:bg-emerald-500 hover:text-white text-emerald-700 py-3 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-1 group"
+                        disabled={tipping === creator.id}
+                        onClick={() => handleTip(creator, amt)}
+                        className="flex-1 bg-emerald-50 hover:bg-emerald-500 hover:text-white text-emerald-700 py-3 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-1 group disabled:opacity-70"
                       >
-                        <Gift size={14} className="group-hover:animate-bounce" /> {amt} NAF
+                        <Gift size={14} className="group-hover:animate-bounce" /> 
+                        {amt} NAF
                       </button>
                     ))}
                   </div>
@@ -172,10 +215,10 @@ export default function CommunityPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Feed logic placeholder */}
             <div className="bg-white/80 backdrop-blur p-8 rounded-[2rem] text-center border border-dashed border-slate-300">
                 <Award size={40} className="mx-auto text-slate-300 mb-4" />
-                <p className="text-slate-500 font-medium">Feed content curated by Nafas AI is arriving shortly...</p>
+                <p className="text-slate-500 font-medium">Community feed curated by Nafas AI is arriving shortly...</p>
+                <p className="text-xs text-slate-400 mt-2">Support creators • Earn rewards • Build tribe</p>
             </div>
           </div>
         )}
@@ -183,7 +226,13 @@ export default function CommunityPage() {
 
       {/* Floating Action: Go Live */}
       <div className="fixed bottom-24 right-6">
-        <button className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:rotate-90 transition-all duration-500 active:scale-90 border-4 border-white">
+        <button 
+          onClick={() => {
+            haptic?.notificationOccurred('success');
+            alert("🎥 Go Live feature coming soon! Host your own wellness session and earn $NAF.");
+          }}
+          className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:rotate-12 transition-all duration-500 active:scale-90 border-4 border-white"
+        >
            <Play fill="white" size={24} />
         </button>
       </div>

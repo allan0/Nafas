@@ -1,139 +1,96 @@
 
 
 ================================================================================
- FILE: ./README.md
-================================================================================
-
-# Nafas (نفس) - The Pulse of Wellness
-
-Nafas is a next-generation, AI-driven mindfulness and fitness platform specifically engineered for the UAE ecosystem. It combines a **Knowledge-Based Recommender System** with **SocialFi** mechanics to incentivize healthy living.
-
-## 🚀 Key Features
-
-- **AI Recommender System:** Hyper-personalized advice on:
-  - **Yoga:** Adaptive poses for various skill levels.
-  - **Endurance:** Science-backed secrets for race preparation.
-  - **Dental Hygiene:** Preventative care and holistic practices.
-  - **Fat Reduction:** Metabolic optimization and meal planning.
-  - **Breath Control:** Running schedules to improve VO2 Max.
-  - **Smoking Cessation:** Behavioral AI coaching to quit for good.
-- **SocialFi Ecosystem:**
-  - **Go Live:** Earn $NAF tokens for hosting wellness sessions.
-  - **Engagement Rewards:** Get tipped by the community and rewarded by the system.
-  - **Tokenized Memberships:** Use tokens for nearby UAE gym offers and beach yoga events.
-- **Nearby Recommendations:** Geolocation-based suggestions (e.g., Yoga at JBR, Cycling at Al Qudra).
-- **Detailed Analytics:** Track sleep, meditation, and physical performance in a unified dashboard.
-
-## 🛠️ Tech Stack
-
-- **Frontend:** Next.js (React), Tailwind CSS, Lucide Icons.
-- **Backend:** FastAPI (Python), LangChain (RAG/AI logic).
-- **Database:** PostgreSQL (User data) + Pinecone (Vector Store for AI Knowledge).
-- **Blockchain:** Solidity (Hardhat) deployed on Polygon/Ethereum.
-- **OS Environment:** Developed on Parrot OS.
-
-## 📂 Project Structure
-
-- `/backend`: FastAPI Recommender Engine & AI logic.
-- `/frontend`: Next.js Web App & Dashboard.
-- `/blockchain`: Smart Contracts for the $NAF token.
-- `/ai_engine`: Knowledge base and training materials.
-
-## 🇦🇪 UAE Context & Feasibility
-Nafas aligns with the **Dubai 30x30 Fitness Challenge** and UAE's vision for a healthy, tech-forward population. The platform is designed to handle local environmental factors like high humidity and heat through optimized indoor/early-morning training schedules.
-
-## 📝 License
-MIT
-
-
-================================================================================
- FILE: ./docker-compose.yml
-================================================================================
-
-
-
-================================================================================
- FILE: ./dump_code.py
+ FILE: ./backend/app/core/ai_logic.py
 ================================================================================
 
 import os
+from pinecone import Pinecone
+from openai import OpenAI
+from langchain_core.prompts import ChatPromptTemplate
+from typing import Dict, Any
 
-# Configuration
-OUTPUT_FILE = "project_code_dump.txt"
-# Folders to skip
-IGNORE_DIRS = {'.git', 'node_modules', '.next', 'dist', 'build', '__pycache__', 'venv', '.vercel'}
-# File extensions to include
-ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.html', '.md', '.py', '.sol', '.yml', '.yaml', '.mjs'}
+class NafasProAI:
+    def __init__(self):
+        # Initialize Clients using your requirements
+        self.pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.index_name = "nafas-knowledge-base"
+        
+        # Connect to your vector index
+        self.index = self.pc.Index(self.index_name)
 
-def dump_code():
-    with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
-        for root, dirs, files in os.walk('.'):
-            # Skip ignored directories
-            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+    def generate_smart_recommendation(self, goal: str, temp: float, humidity: int):
+        # 1. Vector Search: Find the most relevant wellness data in Pinecone
+        # We embed the user's goal to find matching expert documents
+        query_vec = self.openai_client.embeddings.create(
+            input=goal,
+            model="text-embedding-3-small"
+        ).data[0].embedding
+
+        search_results = self.index.query(
+            vector=query_vec,
+            top_k=2,
+            include_metadata=True
+        )
+
+        # Extract context from your uploaded PDF/Docs in Pinecone
+        context = ""
+        for match in search_results['matches']:
+            context += match['metadata']['text'] + "\n"
+
+        # 2. Build the UAE-Aware Prompt
+        prompt = ChatPromptTemplate.from_template("""
+            You are the Nafas AI Wellness Coach, an expert in UAE-specific health.
             
-            for file in files:
-                if any(file.endswith(ext) for ext in ALLOWED_EXTENSIONS):
-                    file_path = os.path.join(root, file)
-                    
-                    # Write a header for the file
-                    outfile.write(f"\n\n{'='*80}\n")
-                    outfile.write(f" FILE: {file_path}\n")
-                    outfile.write(f"{'='*80}\n\n")
-                    
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as infile:
-                            outfile.write(infile.read())
-                    except Exception as e:
-                        outfile.write(f"--- Error reading file: {e} ---")
+            CONTEXT FROM KNOWLEDGE BASE:
+            {context}
+            
+            USER GOAL: {goal}
+            CURRENT UAE WEATHER: {temp}°C, {humidity}% Humidity
+            
+            INSTRUCTIONS:
+            1. Provide a specific exercise plan based on the context.
+            2. Adjust the advice for the UAE weather (Heat/Humidity).
+            3. Mention a specific location in the UAE (e.g., Kite Beach, Al Qudra, Mushrif Park).
+            4. Keep the tone professional, encouraging, and scientific.
+            
+            FORMAT: Return a JSON-style response with 'title', 'plan', and 'safety_tip'.
+        """)
 
-    print(f"Done! All code dumped to {OUTPUT_FILE}")
+        # 3. Generate Response using OpenAI
+        formatted_prompt = prompt.format(
+            context=context if context else "General wellness guidelines",
+            goal=goal,
+            temp=temp,
+            humidity=humidity
+        )
 
-if __name__ == "__main__":
-    dump_code()
+        response = self.openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": formatted_prompt}],
+            response_format={ "type": "json_object" }
+        )
+
+        return response.choices[0].message.content
+
+
 
 
 ================================================================================
- FILE: ./backend/app/main.py
+ FILE: ./backend/app/core_data/yoga_poses/index.md
 ================================================================================
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import json
-import os
 
-app = FastAPI(title="Nafas Wellness AI")
 
-# Load our material
-DATA_PATH = os.path.join(os.path.dirname(__file__), "core_data/wellness_knowledge.json")
 
-def get_knowledge():
-    with open(DATA_PATH, "r") as f:
-        return json.load(f)
 
-class UserProfile(BaseModel):
-    goal: str  # e.g., "yoga", "endurance", "smoking"
-    location: str = "Dubai"
+================================================================================
+ FILE: ./backend/app/core_data/meal_plans/uae_local_diet.json
+================================================================================
 
-@app.get("/")
-def read_root():
-    return {"status": "Nafas API Active", "location": "UAE"}
 
-@app.post("/recommend")
-async def recommend(profile: UserProfile):
-    data = get_knowledge()
-    goal = profile.goal.lower()
-    
-    # Simple Logic: Match goal to knowledge category
-    if "yoga" in goal:
-        return {"category": "Yoga", "content": data["yoga"]}
-    elif "run" in goal or "endurance" in goal:
-        return {"category": "Endurance", "content": data["endurance"]}
-    elif "smoke" in goal or "quit" in goal:
-        return {"category": "Smoking Cessation", "content": data["smoking_cessation"]}
-    elif "teeth" in goal or "dental" in goal:
-        return {"category": "Dental Hygiene", "content": data["dental"]}
-    else:
-        raise HTTPException(status_code=404, detail="Goal not found in knowledge base. Try 'yoga' or 'running'.")
+
 
 
 ================================================================================
@@ -156,6 +113,8 @@ async def recommend(profile: UserProfile):
 ]
 
 
+
+
 ================================================================================
  FILE: ./backend/app/core_data/dental_wellness.json
 ================================================================================
@@ -169,26 +128,128 @@ async def recommend(profile: UserProfile):
 ]
 
 
+
+
 ================================================================================
  FILE: ./backend/app/core_data/wellness_knowledge.json
 ================================================================================
 
-"analytics_pro": {
-  "recovery_score": "Calculated via Heart Rate Variability (HRV) and deep sleep cycles (REM).",
-  "breath_efficiency": "Correlation between nasal breathing duration and VO2 Max improvement.",
-  "social_impact": "Tokens earned via community tipping vs. individual exercise."
+{
+  "yoga": [
+    {
+      "pose": "Sitali Pranayama",
+      "secret": "The Cooling Breath",
+      "benefit": "Instantly lowers core body temperature by 2-3 degrees.",
+      "uae_context": "Crucial for high-humidity months in Dubai (July-Sept)."
+    },
+    {
+      "pose": "Viparita Karani",
+      "secret": "Legs up the Wall",
+      "benefit": "Resets the nervous system and reduces lower-limb edema.",
+      "uae_context": "Perfect for recovery after standing shifts or long DXB flights."
+    }
+  ],
+  "endurance": [
+    {
+      "topic": "Breath Control",
+      "secret": "The 2:2 Rhythm",
+      "detail": "Inhale for two steps, exhale for two steps. Prevents side-stitches by stabilizing the diaphragm.",
+      "uae_context": "Maintains oxygen saturation during heat-stressed runs."
+    }
+  ],
+  "smoking_cessation": [
+    {
+      "tactic": "The 5-Minute Box Breath",
+      "secret": "Haptic Mimicry",
+      "detail": "4s inhale, 4s hold, 4s exhale, 4s hold. Mimics the deep lung expansion of a puff to trick the brain into calm.",
+      "science": "Stimulates the Vagus nerve to release dopamine naturally."
+    }
+  ],
+  "dental_hygiene": [
+    {
+      "topic": "Longevity Link",
+      "secret": "Alkaline Rinsing",
+      "detail": "Rinsing with salt-water/baking soda after dates or coffee to neutralize acid.",
+      "benefit": "Stops enamel erosion from high-sugar local diets."
+    }
+  ],
+  "fat_reduction": [
+    {
+      "topic": "Metabolic Optimization",
+      "secret": "Thermogenic Spices",
+      "detail": "Adding ginger and turmeric to Arabic coffee to boost metabolism.",
+      "uae_context": "Ideal for sedentary AC environments."
+    }
+  ]
 }
 
 
-================================================================================
- FILE: ./backend/app/core_data/yoga_poses/index.md
-================================================================================
-
 
 
 ================================================================================
- FILE: ./backend/app/core_data/meal_plans/uae_local_diet.json
+ FILE: ./backend/app/main.py
 ================================================================================
+
+import os
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# FULL PERMISSIVE CORS FOR DEBUGGING
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Integrated Material Knowledge (Hardcoded to prevent 404/File errors)
+KNOWLEDGE = {
+    "yoga": [{"pose": "Sitali Pranayama", "secret": "Cooling Breath", "detail": "Curling tongue to lower body temp."}],
+    "endurance": [{"topic": "Running", "secret": "2:2 Rhythm", "detail": "Sync breath with steps."}],
+    "smoking_cessation": [{"tactic": "Box Breath", "detail": "4-4-4-4 rhythm to stop cravings."}],
+    "dental_hygiene": [{"topic": "Dental", "secret": "Alkaline Rinsing", "detail": "Salt water after dates."}]
+}
+
+class UserQuery(BaseModel):
+    goal: str
+    location: str = "Dubai"
+
+@app.post("/recommend")
+async def recommend(query: UserQuery):
+    goal = query.goal.lower()
+    if "yoga" in goal: res = KNOWLEDGE["yoga"]
+    elif "run" in goal or "endurance" in goal: res = KNOWLEDGE["endurance"]
+    elif "smoke" in goal: res = KNOWLEDGE["smoking_cessation"]
+    elif "teeth" in goal or "dental" in goal: res = KNOWLEDGE["dental_hygiene"]
+    else: res = [{"secret": "Nafas", "detail": "Take a deep breath."}]
+    return {"status": "success", "recommendations": res}
+
+@app.get("/")
+async def health():
+    return {"status": "Nafas API Online"}
+
+@app.get("/nearby")
+async def nearby():
+    return {"spots": [{"name": "Kite Beach Yoga", "activity": "Yoga"}]}
+
+
+
+
+================================================================================
+ FILE: ./backend/vercel.json
+================================================================================
+
+{
+  "rewrite": [{ "source": "/(.*)", "destination": "app/main.py" }],
+  "functions": {
+    "app/main.py": { "runtime": "vercel-python@0.14.0" }
+  }
+}
+
 
 
 
@@ -204,6 +265,8 @@ import "./.next/types/routes.d.ts";
 // see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
 
 
+
+
 ================================================================================
  FILE: ./frontend/AGENTS.md
 ================================================================================
@@ -215,11 +278,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 
+
+
 ================================================================================
  FILE: ./frontend/CLAUDE.md
 ================================================================================
 
 @AGENTS.md
+
+
 
 
 ================================================================================
@@ -246,6 +313,8 @@ const eslintConfig = defineConfig([
 export default eslintConfig;
 
 
+
+
 ================================================================================
  FILE: ./frontend/next.config.ts
 ================================================================================
@@ -257,6 +326,967 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+
+
+
+================================================================================
+ FILE: ./frontend/public/tonconnect-manifest.json
+================================================================================
+
+{
+  "url": "https://t.me/NafasUAE_bot",
+  "name": "Nafas Wellness",
+  "iconUrl": "https://raw.githubusercontent.com/allan0/Nafas/main/frontend/public/favicon.ico"
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/activities/page.tsx
+================================================================================
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { 
+  CheckCircle2, 
+  Clock, 
+  Zap, 
+  Trophy, 
+  ArrowRight,
+  Loader2
+} from 'lucide-react';
+import { useTonConnectUI } from '@tonconnect/ui-react';
+
+// --- TYPES ---
+interface Activity {
+  id: string;
+  title: string;
+  category: string;
+  tokens: number;
+  duration: string;
+  completed: boolean;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+}
+
+export default function ActivitiesPage() {
+  const [tonConnectUI] = useTonConnectUI();
+  const [loading, setLoading] = useState<string | null>(null);
+  const [score, setScore] = useState(0);
+  
+  // Simulated activities synced with the AI Engine
+  const [activities, setActivities] = useState<Activity[]>([
+    { id: '1', title: 'Box Breathing (4-7-8)', category: 'Yoga', tokens: 20, duration: '5 min', completed: false, difficulty: 'Easy' },
+    { id: '2', title: 'Nasal Breathing Run', category: 'Endurance', tokens: 60, duration: '30 min', completed: false, difficulty: 'Medium' },
+    { id: '3', title: 'Oil Pulling Ritual', category: 'Dental', tokens: 15, duration: '10 min', completed: false, difficulty: 'Easy' },
+    { id: '4', title: 'HIIT Session (Indoor)', category: 'Endurance', tokens: 100, duration: '45 min', completed: false, difficulty: 'Hard' },
+  ]);
+
+  // Handle Activity Logging
+  const handleComplete = async (id: string, tokenAmount: number) => {
+    if (!tonConnectUI.connected) {
+      alert("Please connect your TON wallet to earn $NAF rewards!");
+      return;
+    }
+
+    setLoading(id);
+    
+    // 1. Simulate API verification to Backend
+    try {
+      await new Promise(resolve => setTimeout(resolve, 1500)); 
+      
+      // 2. Update local state
+      setActivities(prev => prev.map(act => 
+        act.id === id ? { ...act, completed: true } : act
+      ));
+      
+      setScore(prev => prev + tokenAmount);
+      
+      // 3. In production, trigger a 'mint' request to your backend 
+      // which has the MINTER_ROLE on the Smart Contract.
+      console.log(`Verified activity ${id}. Backend minting ${tokenAmount} $NAF...`);
+
+    } catch (error) {
+      console.error("Verification failed");
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const completionRate = (activities.filter(a => a.completed).length / activities.length) * 100;
+
+  return (
+    <div className="p-6 max-w-md mx-auto pb-24">
+      {/* Progress Header */}
+      <div className="bg-slate-900 rounded-[2.5rem] p-8 mb-8 text-white relative overflow-hidden shadow-2xl">
+        <div className="absolute top-0 right-0 p-6 opacity-20">
+            <Trophy size={80} />
+        </div>
+        
+        <div className="relative z-10">
+            <h1 className="text-3xl font-bold mb-2">Activities</h1>
+            <p className="text-slate-400 text-sm mb-6">Complete tasks to mint $NAF</p>
+            
+            <div className="flex justify-between items-end mb-2">
+                <span className="text-4xl font-black">{Math.round(completionRate)}%</span>
+                <span className="text-emerald-400 font-bold">+{score} $NAF today</span>
+            </div>
+            
+            <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div 
+                    className="h-full bg-gradient-to-r from-emerald-400 to-blue-500 transition-all duration-1000"
+                    style={{ width: `${completionRate}%` }}
+                />
+            </div>
+        </div>
+      </div>
+
+      {/* Activity List */}
+      <div className="space-y-4">
+        {activities.map((activity) => (
+          <div 
+            key={activity.id}
+            className={`group relative bg-white rounded-3xl p-6 transition-all duration-300 border-2 ${
+                activity.completed ? 'border-emerald-500/50 bg-emerald-50/30' : 'border-transparent hover:shadow-xl'
+            }`}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-xl ${
+                    activity.completed ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {activity.completed ? <CheckCircle2 size={20} /> : <Zap size={20} />}
+                </div>
+                <div>
+                  <h3 className={`font-bold ${activity.completed ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                    {activity.title}
+                  </h3>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                    <Clock size={12} /> {activity.duration} • {activity.category}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="text-right">
+                <div className={`font-black ${activity.completed ? 'text-slate-300' : 'text-emerald-600'}`}>
+                    +{activity.tokens}
+                </div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                    $NAF
+                </div>
+              </div>
+            </div>
+
+            {!activity.completed && (
+              <button
+                disabled={loading !== null}
+                onClick={() => handleComplete(activity.id, activity.tokens)}
+                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition active:scale-95 disabled:opacity-50"
+              >
+                {loading === activity.id ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <>Complete Activity <ArrowRight size={16} /></>
+                )}
+              </button>
+            )}
+            
+            {activity.completed && (
+                <div className="text-center py-2 text-emerald-600 text-xs font-bold flex items-center justify-center gap-1">
+                    Verified on-chain <CheckCircle2 size={14} />
+                </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* UAE Context Footer */}
+      <div className="mt-8 bg-blue-50 border border-blue-100 p-4 rounded-2xl flex gap-3">
+        <div className="bg-blue-500 text-white p-2 rounded-xl h-fit">
+            <Zap size={16} />
+        </div>
+        <p className="text-xs text-blue-900 leading-relaxed">
+            <span className="font-bold">Pro Tip:</span> In the UAE summer, indoor activities yield a 1.2x $NAF multiplier to encourage consistent habits despite the heat.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/ai/page.tsx
+================================================================================
+
+'use client';
+import dynamic from 'next/dynamic';
+const AIContent = dynamic(() => import('@/components/AIContent'), { ssr: false });
+export default function AIPage() { return <AIContent />; }
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/community/page.tsx
+================================================================================
+
+'use client';
+
+import { useState } from 'react';
+import { 
+  Heart, 
+  MessageCircle, 
+  Share2, 
+  Gift, 
+  Play, 
+  Users, 
+  ChevronRight,
+  TrendingUp,
+  Award
+} from 'lucide-react';
+import { useTonConnectUI } from '@tonconnect/ui-react';
+
+// --- TYPES ---
+interface Creator {
+  id: string;
+  name: string;
+  avatar: string;
+  title: string;
+  viewers?: number;
+  isLive: boolean;
+  content: string;
+  tags: string[];
+}
+
+export default function CommunityPage() {
+  const [tonConnectUI] = useTonConnectUI();
+  const [activeTab, setActiveTab] = useState<'live' | 'feed'>('live');
+
+  const creators: Creator[] = [
+    { 
+      id: 'c1', 
+      name: 'Yogi Fatima', 
+      avatar: '🧘‍♀️', 
+      title: 'Hatta Mountain Flow', 
+      viewers: 124, 
+      isLive: true, 
+      content: 'Morning Vinyasa focusing on cooling breath for the Dubai heat.',
+      tags: ['Yoga', 'UAE Nature']
+    },
+    { 
+      id: 'c2', 
+      name: 'Cycling Zayed', 
+      avatar: '🚴‍♂️', 
+      title: 'Al Qudra 50km Prep', 
+      viewers: 89, 
+      isLive: true, 
+      content: 'Talking about hydration strategies for the Dubai Fitness Challenge.',
+      tags: ['Endurance', 'Cycling']
+    },
+    { 
+      id: 'c3', 
+      name: 'Dr. Sarah', 
+      avatar: '🦷', 
+      title: 'Holistic Dental Tips', 
+      isLive: false, 
+      content: 'Why oil pulling is the secret to a brighter smile in 30 days.',
+      tags: ['Wellness', 'Dental']
+    }
+  ];
+
+  // --- TON TRANSACTION LOGIC ---
+  const handleTip = async (creatorAddress: string, amount: number) => {
+    if (!tonConnectUI.connected) {
+      alert("Connect your TON wallet to tip creators!");
+      return;
+    }
+
+    // This is the production-ready TON transaction payload
+    const transaction = {
+      validUntil: Math.floor(Date.now() / 1000) + 60, // 60 seconds
+      messages: [
+        {
+          address: creatorAddress, // In production, this is the creator's TON address
+          amount: (amount * 100000000).toString(), // Converting NAF to nanotokens (example)
+          // payload: "..." // You can add a comment/memo here
+        },
+      ],
+    };
+
+    try {
+      const result = await tonConnectUI.sendTransaction(transaction);
+      alert(`Successfully tipped ${amount} $NAF! \nTx: ${result.boc.slice(0, 10)}...`);
+    } catch (e) {
+      console.error("Transaction failed", e);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50/50 pb-24">
+      {/* Community Header */}
+      <div className="bg-white p-6 pt-12 rounded-b-[3rem] shadow-sm border-b border-slate-100">
+        <h1 className="text-3xl font-black text-slate-900 mb-2">SocialFi</h1>
+        <p className="text-slate-500 text-sm mb-6">Support your favorite wellness creators</p>
+        
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl">
+          <button 
+            onClick={() => setActiveTab('live')}
+            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'live' ? 'bg-white shadow-md text-emerald-600' : 'text-slate-500'}`}
+          >
+            Live Now
+          </button>
+          <button 
+            onClick={() => setActiveTab('feed')}
+            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'feed' ? 'bg-white shadow-md text-emerald-600' : 'text-slate-500'}`}
+          >
+            Feed
+          </button>
+        </div>
+      </div>
+
+      <div className="p-6 max-w-md mx-auto">
+        {activeTab === 'live' ? (
+          <div className="space-y-6">
+            {creators.filter(c => c.isLive).map((creator) => (
+              <div key={creator.id} className="bg-white rounded-[2.5rem] overflow-hidden shadow-lg border border-slate-100 animate-in fade-in zoom-in-95 duration-300">
+                {/* Video Placeholder */}
+                <div className="h-56 bg-gradient-to-br from-slate-900 to-slate-800 relative group">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center group-hover:scale-110 transition">
+                      <Play className="text-white fill-white ml-1" />
+                    </div>
+                  </div>
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    <span className="bg-rose-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> LIVE
+                    </span>
+                    <span className="bg-black/40 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                      <Users size={12} /> {creator.viewers}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Creator Details */}
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+                        {creator.avatar}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-slate-800">{creator.name}</h3>
+                        <p className="text-xs text-slate-500">{creator.title}</p>
+                      </div>
+                    </div>
+                    <button className="bg-slate-100 p-2 rounded-xl text-slate-400 hover:text-rose-500 transition">
+                      <Heart size={20} />
+                    </button>
+                  </div>
+
+                  <p className="text-sm text-slate-600 leading-relaxed mb-6">
+                    {creator.content}
+                  </p>
+
+                  <div className="flex gap-2">
+                    {[10, 50, 100].map(amt => (
+                      <button 
+                        key={amt}
+                        onClick={() => handleTip("EQD...REPLACE_WITH_ADDRESS", amt)}
+                        className="flex-1 bg-emerald-50 hover:bg-emerald-500 hover:text-white text-emerald-700 py-3 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-1 group"
+                      >
+                        <Gift size={14} className="group-hover:animate-bounce" /> {amt} NAF
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Feed logic placeholder */}
+            <div className="bg-white/80 backdrop-blur p-8 rounded-[2rem] text-center border border-dashed border-slate-300">
+                <Award size={40} className="mx-auto text-slate-300 mb-4" />
+                <p className="text-slate-500 font-medium">Feed content curated by Nafas AI is arriving shortly...</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Floating Action: Go Live */}
+      <div className="fixed bottom-24 right-6">
+        <button className="w-16 h-16 bg-gradient-to-tr from-emerald-500 to-blue-500 text-white rounded-full shadow-2xl flex items-center justify-center hover:rotate-90 transition-all duration-500 active:scale-90 border-4 border-white">
+           <Play fill="white" size={24} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/profile/page.tsx
+================================================================================
+
+'use client';
+import dynamic from 'next/dynamic';
+const ProfileContent = dynamic(() => import('@/components/ProfileContent'), { ssr: false });
+export default function ProfilePage() { return <ProfileContent />; }
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/providers.tsx
+================================================================================
+
+'use client';
+import { TonConnectUIProvider } from '@tonconnect/ui-react';
+
+export default function Providers({ children }: { children: React.ReactNode }) {
+  return (
+    <TonConnectUIProvider 
+      manifestUrl="https://raw.githubusercontent.com/allan0/Nafas/main/frontend/public/tonconnect-manifest.json"
+      // This helps reduce some of the network noise
+      actionsConfiguration={{
+          twaReturnUrl: 'https://t.me/NafasUAE_bot'
+      }}
+    >
+      {children}
+    </TonConnectUIProvider>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/globals.css
+================================================================================
+
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --sky-top: #A5D8F8;
+    --sky-bottom: #fcf6f9;
+  }
+
+  body {
+    @apply antialiased text-slate-900;
+    /* Atmospheric Background */
+    background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 100%);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}
+
+@layer components {
+  /* Premium Glassmorphism Effect */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  }
+
+  /* Realistic Floating Cloud/Aura Effect */
+  .aura-blur {
+    position: absolute;
+    filter: blur(80px);
+    border-radius: 50%;
+    z-index: -1;
+    opacity: 0.6;
+    animation: float 20s infinite alternate ease-in-out;
+  }
+
+  @keyframes float {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(20px, 40px) scale(1.1); }
+  }
+
+  /* Hide scrollbars for a clean app feel */
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/page.tsx
+================================================================================
+
+'use client';
+
+import dynamic from 'next/dynamic';
+
+/**
+ * Premium Loading State
+ * A minimalist, "Zen" placeholder that appears while 
+ * the high-fidelity dashboard is initializing.
+ */
+const ZenLoader = () => (
+  <div className="min-h-screen flex flex-col items-center justify-center bg-[#A5D8F8]">
+    <div className="relative">
+      {/* Soft pulse animation for the loader */}
+      <div className="w-24 h-24 bg-white/30 rounded-full animate-ping absolute inset-0" />
+      <div className="w-24 h-24 bg-white/50 backdrop-blur-xl rounded-full flex items-center justify-center relative">
+        <span className="text-2xl animate-pulse">🌬️</span>
+      </div>
+    </div>
+    <p className="mt-8 text-xs tracking-[0.5em] text-slate-500 uppercase font-medium">
+      Breathe In
+    </p>
+  </div>
+);
+
+/**
+ * Dynamic Import of the Dashboard
+ * 'ssr: false' ensures this component NEVER runs on the server, 
+ * preventing crashes during Vercel builds.
+ */
+const MainDashboard = dynamic(() => import('@/components/MainDashboard'), { 
+  ssr: false,
+  loading: () => <ZenLoader />
+});
+
+export default function Home() {
+  return (
+    <main className="min-h-screen overflow-hidden">
+      <MainDashboard />
+    </main>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/app/layout.tsx
+================================================================================
+
+import type { Metadata, Viewport } from "next";
+import { Lexend } from "next/font/google";
+import "./globals.css";
+import BottomNav from "@/components/BottomNav";
+import Providers from "./providers";
+
+// Premium Geometric Font
+const lexend = Lexend({ 
+  subsets: ["latin"],
+  weight: ['300', '400', '600'],
+  variable: '--font-lexend',
+});
+
+// Essential for Telegram Mini Apps to prevent zooming and fix height
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
+};
+
+export const metadata: Metadata = {
+  title: "Nafas Wellness",
+  description: "The Pulse of UAE Wellness",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className={lexend.variable}>
+      <body className="font-sans antialiased premium-bg overflow-x-hidden select-none">
+        
+        {/* Global Atmospheric Auras (The "Real" Clouds) */}
+        {/* These sit behind everything to create depth */}
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          <div className="aura-blur w-[500px] h-[500px] bg-white/40 -top-20 -left-20 animate-pulse" />
+          <div className="aura-blur w-[400px] h-[400px] bg-blue-200/30 top-1/2 -right-20" />
+          <div className="aura-blur w-[600px] h-[600px] bg-emerald-100/20 -bottom-20 left-1/2 -translate-x-1/2" />
+        </div>
+
+        <Providers>
+          {/* Main Content Area */}
+          <main className="relative z-10 min-h-[100dvh]">
+            {children}
+          </main>
+
+          {/* Floating Navigation */}
+          <BottomNav />
+        </Providers>
+
+      </body>
+    </html>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/components/ProfileDashboard.tsx
+================================================================================
+
+'use client';
+// ... all your imports from the profile page ...
+
+export default function ProfileDashboard() {
+   // ... all your profile logic ...
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/components/ProfileContent.tsx
+================================================================================
+
+'use client';
+import { Award, Flame, Calendar, Wallet as WalletIcon, Settings, LogOut } from 'lucide-react';
+import { TonConnectButton } from '@tonconnect/ui-react';
+
+export default function ProfileContent() {
+  return (
+    <div className="p-6 max-w-md mx-auto pb-28">
+      <div className="flex flex-col items-center mb-10">
+        <div className="w-28 h-28 bg-gradient-to-br from-[#7CC6E8] to-[#A8E6B8] rounded-full flex items-center justify-center shadow-xl mb-4 relative text-6xl">🌿</div>
+        <h1 className="text-3xl font-semibold">Allan</h1>
+        <div className="mt-6"><TonConnectButton /></div>
+      </div>
+      <div className="grid grid-cols-3 gap-4 mb-10">
+        <div className="bg-white/90 rounded-3xl p-5 text-center shadow-sm">
+          <Award className="mx-auto text-emerald-500 mb-3" size={32} />
+          <div className="text-2xl font-bold">1245</div>
+          <div className="text-[10px] text-slate-500">NAF EARNED</div>
+        </div>
+        <div className="bg-white/90 rounded-3xl p-5 text-center shadow-sm">
+          <Calendar className="mx-auto text-blue-500 mb-3" size={32} />
+          <div className="text-2xl font-bold">47</div>
+          <div className="text-[10px] text-slate-500">ACTIVITIES</div>
+        </div>
+        <div className="bg-white/90 rounded-3xl p-5 text-center shadow-sm">
+          <Flame className="mx-auto text-orange-500 mb-3" size={32} />
+          <div className="text-2xl font-bold">12</div>
+          <div className="text-[10px] text-slate-500">STREAK</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/components/AIContent.tsx
+================================================================================
+
+'use client';
+import { useState } from 'react';
+import { Send, Loader2 } from 'lucide-react';
+
+// Replace with your Render URL
+const API_URL = "https://nafas-backend.onrender.com"; 
+
+export default function AIContent() {
+  const [messages, setMessages] = useState([{ 
+    role: 'ai', 
+    content: "Hello! I'm Nafas AI. How can I help you with your wellness today?" 
+  }]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMsg = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    const currentInput = input;
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/recommend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ goal: currentInput, location: "Dubai" }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.status === "success" && data.recommendations.length > 0) {
+        const rec = data.recommendations[0];
+        const aiMsg = `✨ ${rec.pose || rec.topic || 'Recommendation'}\n\n${rec.secret || 'Tip'}: ${rec.detail || rec.benefit}`;
+        setMessages(prev => [...prev, { role: 'ai', content: aiMsg }]);
+      }
+    } catch (error) {
+      setMessages(prev => [...prev, { role: 'ai', content: "Backend is currently waking up... please try again in a few seconds." }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-120px)] p-4">
+      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
+        {messages.map((m, i) => (
+          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`p-4 rounded-3xl max-w-[85%] shadow-sm ${m.role === 'user' ? 'bg-emerald-500 text-white rounded-br-none' : 'bg-white text-slate-800 rounded-bl-none'}`}>
+              {m.content}
+            </div>
+          </div>
+        ))}
+        {isLoading && <Loader2 className="animate-spin text-emerald-500 mx-auto" />}
+      </div>
+      
+      <div className="flex gap-2 bg-white p-2 rounded-3xl shadow-lg">
+        <input 
+          className="flex-1 p-3 pl-4 outline-none text-sm"
+          value={input} 
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleSend()}
+          placeholder="Ask about Yoga, Smoking, Endurance..."
+        />
+        <button onClick={handleSend} className="bg-emerald-500 p-3 rounded-2xl text-white active:scale-90 transition">
+          <Send size={20}/>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/components/MainDashboard.tsx
+================================================================================
+
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Award, Flame, MapPin, Zap } from 'lucide-react';
+import { TonConnectButton } from '@tonconnect/ui-react';
+import TelegramWebApp from '@twa-dev/sdk';
+
+const API_URL = "https://nafas-backend.onrender.com";
+
+export default function MainDashboard() {
+  const [username, setUsername] = useState("Seeker");
+  const [wellnessScore] = useState(87);
+  const [nearby, setNearby] = useState<any[]>([]);
+  const [haptic, setHaptic] = useState<any>(null);
+
+  useEffect(() => {
+    // 1. Initialize Telegram Premium Features
+    if (typeof window !== 'undefined') {
+      const tg = TelegramWebApp;
+      tg.ready();
+      tg.expand(); // Forces full-screen "App" mode
+      tg.enableClosingConfirmation(); // Prevents accidental swipes
+      setHaptic(tg.HapticFeedback);
+      
+      if (tg.initDataUnsafe?.user) {
+        setUsername(tg.initDataUnsafe.user.first_name || "Seeker");
+      }
+    }
+
+    // 2. Fetch Nearby Spots from Backend
+    const fetchNearby = async () => {
+      try {
+        const res = await fetch(`${API_URL}/nearby`);
+        const data = await res.json();
+        setNearby(data.spots);
+      } catch (e) {
+        console.log("Backend offline");
+      }
+    };
+    fetchNearby();
+  }, []);
+
+  const triggerActivity = () => {
+    // Premium Feel: Vibrate the phone on click
+    haptic?.notificationOccurred('success');
+    alert("Breath session started... 🌬️");
+  };
+
+  return (
+    <div className="relative min-h-screen w-full overflow-x-hidden scrollbar-hide pb-24">
+      
+      {/* Dynamic Atmospheric Background (Real Clouds effect) */}
+      <div className="aura-blur w-[400px] h-[400px] bg-white top-[-100px] left-[-50px]" />
+      <div className="aura-blur w-[300px] h-[300px] bg-emerald-200 bottom-[100px] right-[-50px] opacity-40" />
+
+      <div className="p-6 relative z-10 space-y-8">
+        
+        {/* Header: Minimalist & Clean */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-light text-slate-900 tracking-tight">
+              {username} <span className="text-xl opacity-50">/ Nafas</span>
+            </h1>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mt-1">UAE Mindful Protocol</p>
+          </div>
+          <TonConnectButton />
+        </div>
+
+        {/* Premium Emoji Status Bar */}
+        <div className="glass-card rounded-[2rem] p-4 flex items-center justify-between border-white/40">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/50 rounded-2xl flex items-center justify-center text-xl shadow-inner">
+              🧘
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800">Status: Deep Flow</p>
+              <p className="text-[9px] text-slate-500">Connected to TON</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">
+            <Zap size={10} fill="currentColor" /> PREMIUM
+          </div>
+        </div>
+
+        {/* Main Score: Focus on Typography */}
+        <div className="py-8 text-center">
+          <div className="relative inline-block">
+             <span className="text-9xl font-thin tracking-tighter text-slate-900 leading-none">
+               {wellnessScore}
+             </span>
+             <span className="absolute -top-2 -right-6 text-xl font-bold text-emerald-500">%</span>
+          </div>
+          <p className="text-xs tracking-[0.4em] text-slate-400 uppercase mt-4">Breath Vitality</p>
+        </div>
+
+        {/* Nearby Map Card */}
+        <div className="glass-card rounded-[2.5rem] p-6 space-y-6">
+          <h3 className="text-sm font-bold flex items-center gap-2 text-slate-700">
+            <MapPin size={16} className="text-emerald-500" />
+            Nearby Wellness <span className="opacity-30">/ UAE</span>
+          </h3>
+          
+          <div className="space-y-3">
+            {nearby.length > 0 ? (
+              nearby.map((spot, i) => (
+                <div key={i} className="flex items-center justify-between bg-white/30 p-4 rounded-3xl border border-white/20">
+                  <span className="text-sm font-semibold">{spot.name}</span>
+                  <div className="text-[10px] font-bold text-emerald-600 bg-white px-3 py-1 rounded-full shadow-sm">
+                    {spot.activity}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-4 text-slate-400 text-xs italic">Syncing with Dubai landmarks...</div>
+            )}
+          </div>
+        </div>
+
+        {/* Primary Action */}
+        <button 
+          onClick={triggerActivity}
+          className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-bold shadow-2xl active:scale-[0.98] transition-all hover:bg-slate-800"
+        >
+          Begin Breath Protocol
+        </button>
+
+      </div>
+    </div>
+  );
+}
+
+
+
+
+================================================================================
+ FILE: ./frontend/src/components/BottomNav.tsx
+================================================================================
+
+'use client';
+
+import { Home, Leaf, Users, Sparkles, User } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import TelegramWebApp from '@twa-dev/sdk';
+
+const navItems = [
+  { name: 'Home', icon: Home, path: '/' },
+  { name: 'Flow', icon: Leaf, path: '/activities' },
+  { name: 'Tribe', icon: Users, path: '/community' },
+  { name: 'Coach', icon: Sparkles, path: '/ai' },
+  { name: 'Self', icon: User, path: '/profile' },
+];
+
+export default function BottomNav() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const [haptic, setHaptic] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setHaptic(TelegramWebApp.HapticFeedback);
+    }
+  }, []);
+
+  const navigateTo = (path: string) => {
+    if (pathname === path) return;
+    
+    // Premium Haptic: "Selection Changed" light vibration
+    haptic?.selectionChanged();
+    router.push(path);
+  };
+
+  return (
+    <div className="fixed bottom-8 left-0 right-0 z-50 px-6">
+      <div className="max-w-md mx-auto glass-card rounded-[2.5rem] p-2 flex justify-around items-center border-white/40 shadow-2xl">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.path;
+
+          return (
+            <button
+              key={item.path}
+              onClick={() => navigateTo(item.path)}
+              className={`relative flex flex-col items-center justify-center w-14 h-14 transition-all duration-500 rounded-3xl ${
+                isActive ? 'text-slate-900 scale-110' : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              {/* Active Glow Indicator */}
+              {isActive && (
+                <div className="absolute inset-0 bg-white/60 rounded-3xl blur-md -z-10 animate-pulse" />
+              )}
+              
+              <Icon 
+                size={22} 
+                strokeWidth={isActive ? 2.5 : 1.5} 
+                className="transition-transform duration-300"
+              />
+              
+              <span className={`text-[8px] font-bold uppercase tracking-widest mt-1 transition-opacity duration-300 ${
+                isActive ? 'opacity-100' : 'opacity-0'
+              }`}>
+                {item.name}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 
 
 ================================================================================
@@ -297,6 +1327,8 @@ export default nextConfig;
   ],
   "exclude": ["node_modules"]
 }
+
+
 
 
 ================================================================================
@@ -2339,6 +3371,8 @@ export default nextConfig;
 }
 
 
+
+
 ================================================================================
  FILE: ./frontend/package.json
 ================================================================================
@@ -2374,6 +3408,8 @@ export default nextConfig;
 }
 
 
+
+
 ================================================================================
  FILE: ./frontend/postcss.config.mjs
 ================================================================================
@@ -2385,714 +3421,90 @@ export default {
 };
 
 
-================================================================================
- FILE: ./frontend/public/tonconnect-manifest.json
-================================================================================
-
-{
-  "url": "https://t.me/NafasUAE_bot",
-  "name": "Nafas Wellness",
-  "iconUrl": "https://raw.githubusercontent.com/allan0/Nafas/main/frontend/public/favicon.ico"
-}
 
 
 ================================================================================
- FILE: ./frontend/src/app/globals.css
+ FILE: ./blockchain/contracts/NafasToken.sol
 ================================================================================
 
-@import "tailwindcss";
-
-/* Your custom styles below */
-body {
-  background: linear-gradient(to bottom, #A5D8F8, #7CC6E8, #A8E6B8);
-  font-family: system-ui, -apple-system, sans-serif;
-  overflow-x: hidden;
-}
-
-.cloud {
-  position: absolute;
-  background: white;
-  border-radius: 9999px;
-  opacity: 0.85;
-  animation: drift 25s linear infinite;
-  box-shadow: 0 10px 30px rgba(255,255,255,0.6);
-}
-
-@keyframes drift {
-  0% { transform: translateX(-100px); }
-  100% { transform: translateX(400px); }
-}
-
-/* Wave bottom nav */
-.wave-nav {
-  background: linear-gradient(to top, #68D4B8, #4ECDC4);
-  border-top-left-radius: 30px;
-  border-top-right-radius: 30px;
-  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.1);
-}
-
-
-================================================================================
- FILE: ./frontend/src/app/providers.tsx
-================================================================================
-
-'use client';
-
-import { TonConnectUIProvider } from '@tonconnect/ui-react';
-
-export default function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <TonConnectUIProvider manifestUrl="https://raw.githubusercontent.com/allan0/Nafas/main/frontend/public/tonconnect-manifest.json">
-      {children}
-    </TonConnectUIProvider>
-  );
-}
-
-
-================================================================================
- FILE: ./frontend/src/app/layout.tsx
-================================================================================
-
-import type { Metadata } from "next";
-import "./globals.css";
-import BottomNav from "@/components/BottomNav";
-import Providers from "./providers";
-
-export const metadata: Metadata = {
-  title: "Nafas Wellness",
-  description: "Breathe Better, Live Better - Powered by TON & AI",
-  icons: { icon: "/favicon.ico" },
-};
-
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <body className="min-h-screen bg-gradient-to-b from-[#A5D8F8] via-[#7CC6E8] to-[#A8E6B8] text-slate-800 overflow-hidden relative">
-        {/* Floating Clouds */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
-          <div className="cloud w-32 h-20 top-12 left-10" style={{animationDelay: "0s"}}></div>
-          <div className="cloud w-24 h-16 top-28 right-20" style={{animationDelay: "8s"}}></div>
-          <div className="cloud w-40 h-24 top-40 left-1/3" style={{animationDelay: "15s"}}></div>
-          <div className="cloud w-28 h-18 top-60 right-1/4" style={{animationDelay: "22s"}}></div>
-        </div>
-
-        <Providers>
-          <main className="pb-20 min-h-screen relative z-10">
-            {children}
-          </main>
-          <BottomNav />
-        </Providers>
-      </body>
-    </html>
-  );
-}
-
-
-================================================================================
- FILE: ./frontend/src/app/page.tsx
-================================================================================
-
-
-'use client';
-
-import dynamic from 'next/dynamic';
-
-// This is the magic fix for "window is not defined"
-const MainDashboard = dynamic(() => import('@/components/MainDashboard'), { 
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-pulse text-emerald-600 font-medium">Breathe in...</div>
-    </div>
-  )
-});
-
-export default function Home() {
-  return <MainDashboard />;
-}
-
-
-
-================================================================================
- FILE: ./frontend/src/app/activities/page.tsx
-================================================================================
-
-'use client';
-
-import { useState } from 'react';
-import { Clock, Award, Leaf } from 'lucide-react';
-import TelegramWebApp from '@twa-dev/sdk';
-
-export default function Activities() {
-  const [logged, setLogged] = useState(4);
-
-  const activities = [
-    { title: "10-Minute Meditation", duration: "10 min", reward: 30, icon: "🧘" },
-    { title: "Mindful Walk", duration: "20 min", reward: 50, icon: "🚶" },
-    { title: "Deep Breathing", duration: "5 min", reward: 20, icon: "🌬️" },
-    { title: "Gentle Yoga Flow", duration: "15 min", reward: 40, icon: "🧘‍♀️" },
-  ];
-
-  const handleLog = (title: string, reward: number) => {
-    setLogged(prev => Math.min(prev + 1, 6));
-    alert(`✅ Logged: ${title}\n+${reward} NAF minted!`);
-  };
-
-  return (
-    <div className="p-6 max-w-md mx-auto pb-24">
-      <h1 className="text-3xl font-semibold mb-2">Today’s Activities</h1>
-      <p className="text-slate-600 mb-8">Log and earn NAF tokens</p>
-
-      <div className="flex justify-center mb-10">
-        <div className="relative w-40 h-40">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
-            <circle cx="60" cy="60" r="54" fill="none" stroke="#e2e8f0" strokeWidth="14" />
-            <circle cx="60" cy="60" r="54" fill="none" stroke="#4ECDC4" strokeWidth="14"
-              strokeDasharray={339} strokeDashoffset={339 * (1 - logged / 6)} strokeLinecap="round" />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-5xl font-bold">{logged}/6</div>
-              <div className="text-sm text-slate-500">today</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        {activities.map((act, i) => (
-          <div key={i} className="bg-white/90 backdrop-blur-2xl rounded-3xl p-6 flex justify-between items-center">
-            <div className="flex items-center gap-5">
-              <div className="text-4xl">{act.icon}</div>
-              <div>
-                <div className="font-semibold">{act.title}</div>
-                <div className="text-sm text-slate-500 flex items-center gap-2">
-                  <Clock size={16} /> {act.duration}
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-emerald-600 font-medium">+{act.reward} NAF</div>
-              <button 
-                onClick={() => handleLog(act.title, act.reward)}
-                className="mt-2 bg-emerald-500 text-white px-6 py-2 rounded-2xl text-sm"
-              >
-                Log
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
-================================================================================
- FILE: ./frontend/src/app/ai/page.tsx
-================================================================================
-
-'use client';
-
-import { useState } from 'react';
-import { Send, Mic } from 'lucide-react';
-
-export default function AICoach() {
-  const [messages, setMessages] = useState([
-    { role: 'ai', content: "Hello! I'm your Nafas AI Coach. How are you feeling today?" },
-  ]);
-  const [input, setInput] = useState("");
-
-  const handleSend = () => {
-    if (!input.trim()) return;
-
-    setMessages(prev => [...prev, { role: 'user', content: input }]);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = [
-        "Let's try a simple 4-7-8 breathing exercise together. Inhale for 4, hold for 7, exhale for 8.",
-        "Great choice! Would you like a personalized 5-minute mindfulness plan for today?",
-        "I recommend logging a short meditation session. You'll earn 30 NAF instantly.",
-      ];
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-
-      setMessages(prev => [...prev, { role: 'ai', content: randomResponse }]);
-    }, 800);
-
-    setInput("");
-  };
-
-  return (
-    <div className="flex flex-col h-[calc(100vh-80px)] max-w-md mx-auto p-6 pb-24">
-      <div className="text-center mb-8">
-        <div className="mx-auto w-20 h-20 bg-gradient-to-br from-[#7CC6E8] to-[#A5D8F8] rounded-full flex items-center justify-center mb-4 shadow-inner">
-          <span className="text-5xl">🌬️</span>
-        </div>
-        <h1 className="text-2xl font-semibold">Your AI Wellness Coach</h1>
-        <p className="text-slate-600 text-sm">Always here to guide your breath</p>
-      </div>
-
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto space-y-6 pb-8 pr-2">
-        {messages.map((msg, index) => (
-          <div
-            key={index}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[80%] px-5 py-4 rounded-3xl ${
-                msg.role === 'user'
-                  ? 'bg-emerald-500 text-white rounded-br-none'
-                  : 'bg-white/90 backdrop-blur-xl text-slate-800 rounded-bl-none'
-              }`}
-            >
-              {msg.content}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Quick Suggestions */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {["Breathing guide", "Daily plan", "Mood check", "Stress relief"].map((suggestion) => (
-          <button
-            key={suggestion}
-            onClick={() => setInput(suggestion)}
-            className="bg-white/70 hover:bg-white text-sm px-5 py-2 rounded-2xl transition"
-          >
-            {suggestion}
-          </button>
-        ))}
-      </div>
-
-      {/* Input Area */}
-      <div className="flex gap-3">
-        <button className="w-12 h-12 bg-white/80 backdrop-blur rounded-2xl flex items-center justify-center text-slate-600">
-          <Mic size={24} />
-        </button>
-        <div className="flex-1 relative">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="How can I help you breathe better today?"
-            className="w-full bg-white/90 backdrop-blur-xl border border-transparent focus:border-emerald-400 rounded-3xl py-4 px-6 text-sm outline-none"
-          />
-        </div>
-        <button
-          onClick={handleSend}
-          className="w-12 h-12 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl flex items-center justify-center transition"
-        >
-          <Send size={22} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-
-================================================================================
- FILE: ./frontend/src/app/community/page.tsx
-================================================================================
-
-'use client';
-
-import { useState } from 'react';
-import { Users, Gift, Play } from 'lucide-react';
-
-const liveStreams = [
-  { id: 1, creator: "Lena Yoga", title: "Morning Flow Yoga", viewers: 42, reward: 50 },
-  { id: 2, creator: "Alex Breathwork", title: "4-7-8 Breathing", viewers: 19, reward: 30 },
-];
-
-const feedPosts = [
-  { id: 1, creator: "MindfulMia", tip: "Start your day with 3 deep breaths 💨", time: "2h ago" },
-  { id: 2, creator: "WellnessWave", tip: "Herbal tea ritual for calm evenings 🌿", time: "5h ago" },
-];
-
-export default function Community() {
-  const [selectedAmount, setSelectedAmount] = useState(50);
-
-  const handleTip = (creator: string, amount: number) => {
-    // In real implementation this will call tipCreator on the NafasToken contract via TON
-    alert(`💸 Tipped ${amount} NAF to ${creator}!\n\nTransaction sent on TON blockchain.`);
-  };
-
-  return (
-    <div className="p-6 max-w-md mx-auto pb-24">
-      <div className="mb-8">
-        <h1 className="text-3xl font-semibold mb-1">Community & Live</h1>
-        <p className="text-slate-600">Connect, watch, and support creators</p>
-      </div>
-
-      {/* Live Streams Section */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-xl flex items-center gap-2">
-            <Play className="text-red-500" /> Live Now
-          </h2>
-          <span className="text-sm text-emerald-600">2 live</span>
-        </div>
-
-        <div className="space-y-4">
-          {liveStreams.map((stream) => (
-            <div key={stream.id} className="bg-white/90 backdrop-blur-xl rounded-3xl overflow-hidden shadow-sm">
-              <div className="h-40 bg-gradient-to-br from-[#7CC6E8] to-[#4ECDC4] relative flex items-center justify-center">
-                <div className="absolute top-4 left-4 bg-red-500 text-white text-xs px-3 py-1 rounded-full font-medium flex items-center gap-1">
-                  ● LIVE
-                </div>
-                <div className="text-white text-center">
-                  <div className="text-2xl font-semibold">{stream.title}</div>
-                  <div className="text-sm opacity-90">with {stream.creator}</div>
-                </div>
-              </div>
-
-              <div className="p-5 flex items-center justify-between">
-                <div>
-                  <div className="text-sm text-slate-500">{stream.viewers} watching</div>
-                </div>
-                <button 
-                  onClick={() => handleTip(stream.creator, stream.reward)}
-                  className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-2xl font-medium transition"
-                >
-                  <Gift size={18} />
-                  Tip {stream.reward} NAF
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Feed / Tips Section */}
-      <div>
-        <h2 className="font-semibold text-xl mb-4">Community Feed</h2>
-        <div className="space-y-4">
-          {feedPosts.map((post) => (
-            <div key={post.id} className="bg-white/90 backdrop-blur-xl rounded-3xl p-6 shadow-sm">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-[#A5D8F8] to-[#7CC6E8] rounded-full"></div>
-                <div>
-                  <div className="font-medium">{post.creator}</div>
-                  <div className="text-xs text-slate-500">{post.time}</div>
-                </div>
-              </div>
-
-              <div className="text-slate-700 mb-5 leading-relaxed">
-                “{post.tip}”
-              </div>
-
-              <div className="flex gap-3">
-                {[30, 50, 100].map((amt) => (
-                  <button
-                    key={amt}
-                    onClick={() => handleTip(post.creator, amt)}
-                    className="flex-1 bg-white border border-slate-200 hover:border-emerald-400 hover:text-emerald-600 transition py-3 rounded-2xl text-sm font-medium"
-                  >
-                    Tip {amt} NAF
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-10 text-center text-xs text-slate-500">
-        All tips are sent instantly using the NafasToken contract on TON
-      </div>
-    </div>
-  );
-}
-
-
-================================================================================
- FILE: ./frontend/src/app/profile/page.tsx
-================================================================================
-
-'use client';
-
-import { useState } from 'react';
-import { Award, Flame, Calendar, Settings, LogOut, Wallet as WalletIcon } from 'lucide-react';
-import { TonConnectButton } from '@tonconnect/ui-react';
-
-export default function Profile() {
-  const [nafEarned, setNafEarned] = useState(1245);
-  const [activitiesCompleted, setActivitiesCompleted] = useState(47);
-  const [currentStreak, setCurrentStreak] = useState(12);
-  const [username] = useState("Allan");
-
-  const transactions = [
-    { type: "Reward", amount: "+80", activity: "Meditation session", time: "Today 09:15" },
-    { type: "Tip Sent", amount: "-50", activity: "To Lena Yoga", time: "Yesterday 18:40" },
-    { type: "Reward", amount: "+30", activity: "Breathing exercise", time: "Yesterday 08:22" },
-    { type: "Tip Received", amount: "+100", activity: "From community", time: "2 days ago" },
-  ];
-
-  return (
-    <div className="p-6 max-w-md mx-auto pb-28">
-      {/* Profile Header */}
-      <div className="flex flex-col items-center mb-10">
-        <div className="w-28 h-28 bg-gradient-to-br from-[#7CC6E8] via-[#A5D8F8] to-[#A8E6B8] rounded-full flex items-center justify-center shadow-xl mb-4 relative">
-          <div className="text-6xl">🌿</div>
-          <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white text-xs w-8 h-8 rounded-full flex items-center justify-center border-4 border-white">
-            ✓
-          </div>
-        </div>
-        
-        <h1 className="text-3xl font-semibold">{username}</h1>
-        <p className="text-slate-600 mt-1">Breathing my way to calm</p>
-        
-        <div className="mt-6 flex gap-4">
-          <TonConnectButton />
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-10">
-        <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-5 text-center shadow-sm">
-          <Award className="mx-auto text-emerald-500 mb-3" size={32} />
-          <div className="text-3xl font-bold text-slate-800">{nafEarned}</div>
-          <div className="text-xs text-slate-500 tracking-widest mt-1">NAF EARNED</div>
-        </div>
-        
-        <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-5 text-center shadow-sm">
-          <Calendar className="mx-auto text-blue-500 mb-3" size={32} />
-          <div className="text-3xl font-bold text-slate-800">{activitiesCompleted}</div>
-          <div className="text-xs text-slate-500 tracking-widest mt-1">ACTIVITIES</div>
-        </div>
-        
-        <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-5 text-center shadow-sm">
-          <Flame className="mx-auto text-orange-500 mb-3" size={32} />
-          <div className="text-3xl font-bold text-slate-800">{currentStreak}</div>
-          <div className="text-xs text-slate-500 tracking-widest mt-1">DAY STREAK</div>
-        </div>
-      </div>
-
-      {/* Wallet Section */}
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-7 mb-10 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <WalletIcon className="text-emerald-600" size={28} />
-            <div>
-              <div className="font-semibold">My NAF Wallet</div>
-              <div className="text-xs text-slate-500">on TON Blockchain</div>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-emerald-600">{nafEarned} NAF</div>
-            <div className="text-xs text-slate-500">≈ $12.45</div>
-          </div>
-        </div>
-
-        <button 
-          className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-2xl font-medium flex items-center justify-center gap-2 transition mb-4"
-          onClick={() => alert("Claiming daily reward... +50 NAF minted!")}
-        >
-          Claim Daily Reward (+50 NAF)
-        </button>
-
-        <div className="text-xs text-center text-slate-500">
-          Your TON address will appear here after first connection
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div className="mb-10">
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="font-semibold text-lg">Recent Activity</h2>
-          <span className="text-xs text-slate-500">View all →</span>
-        </div>
-
-        <div className="space-y-3">
-          {transactions.map((tx, index) => (
-            <div key={index} className="bg-white/80 backdrop-blur rounded-2xl p-5 flex justify-between items-center">
-              <div>
-                <div className="font-medium">{tx.activity}</div>
-                <div className="text-xs text-slate-500">{tx.time}</div>
-              </div>
-              <div className={`font-semibold ${tx.amount.startsWith('+') ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {tx.amount} NAF
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Settings */}
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl p-6 space-y-5">
-        <button className="w-full flex items-center gap-4 py-3 text-left hover:bg-slate-50 rounded-2xl px-4 transition">
-          <Settings size={22} className="text-slate-500" />
-          <span className="font-medium">Appearance & Theme</span>
-        </button>
-        
-        <button className="w-full flex items-center gap-4 py-3 text-left hover:bg-slate-50 rounded-2xl px-4 transition">
-          <div className="w-5 h-5 rounded bg-slate-200"></div>
-          <span className="font-medium">Notifications</span>
-        </button>
-        
-        <button className="w-full flex items-center gap-4 py-3 text-left hover:bg-slate-50 rounded-2xl px-4 transition">
-          <div>🌍</div>
-          <span className="font-medium">Language</span>
-        </button>
-
-        <div className="pt-4 border-t border-slate-100">
-          <button className="w-full flex items-center gap-4 py-3 text-left text-rose-500 hover:bg-rose-50 rounded-2xl px-4 transition">
-            <LogOut size={22} />
-            <span className="font-medium">Logout</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="h-16"></div>
-    </div>
-  );
-}
-
-
-================================================================================
- FILE: ./frontend/src/components/BottomNav.tsx
-================================================================================
-
-'use client';
-
-import { Home, Leaf, Users, Sparkles, User } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-
-const navItems = [
-  { name: 'Home', icon: Home, path: '/' },
-  { name: 'Activities', icon: Leaf, path: '/activities' },
-  { name: 'Community', icon: Users, path: '/community' },
-  { name: 'AI', icon: Sparkles, path: '/ai' },
-  { name: 'Profile', icon: User, path: '/profile' },
-];
-
-export default function BottomNav() {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [active, setActive] = useState('/');
-
-  useEffect(() => {
-    setActive(pathname);
-  }, [pathname]);
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 wave-nav py-3 px-6">
-      <div className="flex justify-around items-center max-w-md mx-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = active === item.path;
-          return (
-            <button
-              key={item.path}
-              onClick={() => router.push(item.path)}
-              className={`flex flex-col items-center transition-all duration-300 ${isActive ? 'text-white scale-110' : 'text-white/70 hover:text-white'}`}
-            >
-              <div className={`p-2 rounded-full ${isActive ? 'bg-white/20' : ''}`}>
-                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              </div>
-              <span className="text-[10px] mt-1 font-medium tracking-wide">{item.name}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-
-================================================================================
- FILE: ./frontend/src/components/MainDashboard.tsx
-================================================================================
-
-
-'use client';
-
-import { useEffect, useState } from 'react';
-import { Award, Flame } from 'lucide-react';
-import { TonConnectButton } from '@tonconnect/ui-react';
-import TelegramWebApp from '@twa-dev/sdk';
-
-const UAE_SPOTS = [
-  { name: "Kite Beach Yoga", lat: 25.164, lng: 55.201, activity: "Yoga" },
-  { name: "Al Qudra Cycle Track", lat: 24.83, lng: 55.37, activity: "Endurance" },
-  { name: "JBR Beach Run", lat: 25.07, lng: 55.13, activity: "Running" }
-];
-
-export default function MainDashboard() {
-  const [username, setUsername] = useState("Wellness Seeker");
-  const [wellnessScore] = useState(87);
-  const [nearby, setNearby] = useState<any[]>([]);
-
-  const findNearby = (lat: number, lng: number) => {
-    const filtered = UAE_SPOTS.filter(spot => {
-        const dist = Math.sqrt(Math.pow(spot.lat - lat, 2) + Math.pow(spot.lng - lng, 2));
-        return dist < 0.1; 
-    });
-    setNearby(filtered);
-  };
-
-  useEffect(() => {
-    const tg = TelegramWebApp;
-    try {
-      tg.ready();
-      tg.expand();
-      if (tg.initDataUnsafe?.user) {
-        setUsername(tg.initDataUnsafe.user.first_name || "Wellness Seeker");
-      }
-
-      if (tg.LocationManager) {
-        tg.LocationManager.init(() => {
-          tg.LocationManager.getLocation((data) => {
-            if (data) findNearby(data.latitude, data.longitude);
-          });
-        });
-      }
-    } catch (e) {
-      console.log("Web environment detected");
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+
+/**
+ * @title NafasToken ($NAF)
+ * @dev Implementation of the Nafas Wellness SocialFi token.
+ * Features: Role-based minting, Pausable transfers, and Tipping events.
+ */
+contract NafasToken is ERC20, ERC20Burnable, AccessControl, Pausable {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+
+    // Events for SocialFi tracking
+    event WellnessRewardMinted(address indexed user, uint256 amount, string activityType);
+    event CreatorTipped(address indexed sender, address indexed creator, uint256 amount, string memo);
+
+    constructor(address defaultAdmin, address minter) ERC20("Nafas Wellness", "NAF") {
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(MINTER_ROLE, minter);
+        _grantRole(PAUSER_ROLE, defaultAdmin);
+
+        // Initial ecosystem supply (10 million NAF)
+        _mint(defaultAdmin, 10_000_000 * 10 ** decimals());
     }
-  }, []);
 
-  return (
-    <div className="p-6 max-w-md mx-auto relative z-10 min-h-screen">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Hello, {username} 🌿</h1>
-          <p className="text-slate-600">Nafas Wellness AI</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <TonConnectButton />
-        </div>
-      </div>
+    /**
+     * @dev Backend calls this to reward users for completing AI-recommended tasks.
+     * Only addresses with MINTER_ROLE (the backend wallet) can call this.
+     */
+    function mintReward(
+        address to, 
+        uint256 amount, 
+        string memory activityType
+    ) public onlyRole(MINTER_ROLE) {
+        _mint(to, amount);
+        emit WellnessRewardMinted(to, amount, activityType);
+    }
 
-      <div className="bg-white/90 backdrop-blur-2xl rounded-3xl p-8 mb-8 shadow-xl text-center">
-        <div className="text-6xl font-bold text-emerald-500 mb-2">{wellnessScore}</div>
-        <div className="text-sm uppercase tracking-widest text-slate-500">Wellness Score</div>
-      </div>
+    /**
+     * @dev SocialFi feature: Users tip wellness creators.
+     * The memo allows the frontend to display a "Thank you" message.
+     */
+    function tipCreator(
+        address creator, 
+        uint256 amount, 
+        string memory memo
+    ) public whenNotPaused {
+        require(balanceOf(msg.sender) >= amount, "NAF: Insufficient balance to tip");
+        _transfer(msg.sender, creator, amount);
+        emit CreatorTipped(msg.sender, creator, amount, memo);
+    }
 
-      <div className="bg-white/20 backdrop-blur-md rounded-2xl p-4 mb-8">
-        <h3 className="font-bold mb-2">📍 Nearby UAE Spots</h3>
-        {nearby.length > 0 ? (
-          nearby.map((spot, i) => (
-            <div key={i} className="text-sm p-2 border-b border-white/10 flex justify-between">
-              <span>{spot.name}</span>
-              <span className="text-emerald-600">{spot.activity}</span>
-            </div>
-          ))
-        ) : (
-          <p className="text-xs text-slate-500">Looking for nearby events...</p>
-        )}
-      </div>
-    </div>
-  );
+    /**
+     * @dev Emergency pause mechanism
+     */
+    function pause() public onlyRole(PAUSER_ROLE) {
+        _pause();
+    }
+
+    function unpause() public onlyRole(PAUSER_ROLE) {
+        _unpause();
+    }
+
+    // Required overrides for AccessControl and ERC20
+    function _update(address from, address to, uint256 value)
+        internal
+        override(ERC20)
+        whenNotPaused
+    {
+        super._update(from, to, value);
+    }
 }
+
 
 
 
@@ -3123,6 +3535,8 @@ export default function MainDashboard() {
     "@openzeppelin/contracts": "^5.6.1"
   }
 }
+
+
 
 
 ================================================================================
@@ -4380,28 +4794,101 @@ export default function MainDashboard() {
 }
 
 
+
+
 ================================================================================
- FILE: ./blockchain/contracts/NafasToken.sol
+ FILE: ./README.md
 ================================================================================
 
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+# Nafas (نفس) - The Pulse of Wellness
 
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+Nafas is a next-generation, AI-driven mindfulness and fitness platform specifically engineered for the UAE ecosystem. It combines a **Knowledge-Based Recommender System** with **SocialFi** mechanics to incentivize healthy living.
 
-contract NafasToken is ERC20, Ownable {
-    constructor() ERC20("Nafas Wellness", "NAF") Ownable(msg.sender) {
-        _mint(msg.sender, 1000000 * 10**decimals()); // Initial supply for the ecosystem
-    }
+## 🚀 Key Features
 
-    // Function to reward users for wellness activities
-    function rewardUser(address to, uint256 amount) public onlyOwner {
-        _mint(to, amount);
-    }
+- **AI Recommender System:** Hyper-personalized advice on:
+  - **Yoga:** Adaptive poses for various skill levels.
+  - **Endurance:** Science-backed secrets for race preparation.
+  - **Dental Hygiene:** Preventative care and holistic practices.
+  - **Fat Reduction:** Metabolic optimization and meal planning.
+  - **Breath Control:** Running schedules to improve VO2 Max.
+  - **Smoking Cessation:** Behavioral AI coaching to quit for good.
+- **SocialFi Ecosystem:**
+  - **Go Live:** Earn $NAF tokens for hosting wellness sessions.
+  - **Engagement Rewards:** Get tipped by the community and rewarded by the system.
+  - **Tokenized Memberships:** Use tokens for nearby UAE gym offers and beach yoga events.
+- **Nearby Recommendations:** Geolocation-based suggestions (e.g., Yoga at JBR, Cycling at Al Qudra).
+- **Detailed Analytics:** Track sleep, meditation, and physical performance in a unified dashboard.
 
-    // SocialFi: Tip a creator for their live stream
-    function tipCreator(address creator, uint256 amount) public {
-        _transfer(msg.sender, creator, amount);
-    }
-}
+## 🛠️ Tech Stack
+
+- **Frontend:** Next.js (React), Tailwind CSS, Lucide Icons.
+- **Backend:** FastAPI (Python), LangChain (RAG/AI logic).
+- **Database:** PostgreSQL (User data) + Pinecone (Vector Store for AI Knowledge).
+- **Blockchain:** Solidity (Hardhat) deployed on Polygon/Ethereum.
+- **OS Environment:** Developed on Parrot OS.
+
+## 📂 Project Structure
+
+- `/backend`: FastAPI Recommender Engine & AI logic.
+- `/frontend`: Next.js Web App & Dashboard.
+- `/blockchain`: Smart Contracts for the $NAF token.
+- `/ai_engine`: Knowledge base and training materials.
+
+## 🇦🇪 UAE Context & Feasibility
+Nafas aligns with the **Dubai 30x30 Fitness Challenge** and UAE's vision for a healthy, tech-forward population. The platform is designed to handle local environmental factors like high humidity and heat through optimized indoor/early-morning training schedules.
+
+## 📝 License
+MIT
+
+
+
+
+================================================================================
+ FILE: ./docker-compose.yml
+================================================================================
+
+
+
+
+
+================================================================================
+ FILE: ./dump_code.py
+================================================================================
+
+import os
+
+# Configuration
+OUTPUT_FILE = "project_code_dump.txt"
+# Folders to skip
+IGNORE_DIRS = {'.git', 'node_modules', '.next', 'dist', 'build', '__pycache__', 'venv', '.vercel'}
+# File extensions to include
+ALLOWED_EXTENSIONS = {'.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.html', '.md', '.py', '.sol', '.yml', '.yaml', '.mjs'}
+
+def dump_code():
+    with open(OUTPUT_FILE, 'w', encoding='utf-8') as outfile:
+        for root, dirs, files in os.walk('.'):
+            # Skip ignored directories
+            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+            
+            for file in files:
+                if any(file.endswith(ext) for ext in ALLOWED_EXTENSIONS):
+                    file_path = os.path.join(root, file)
+                    
+                    # Write a header for the file
+                    outfile.write(f"\n\n{'='*80}\n")
+                    outfile.write(f" FILE: {file_path}\n")
+                    outfile.write(f"{'='*80}\n\n")
+                    
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as infile:
+                            outfile.write(infile.read())
+                    except Exception as e:
+                        outfile.write(f"--- Error reading file: {e} ---")
+
+    print(f"Done! All code dumped to {OUTPUT_FILE}")
+
+if __name__ == "__main__":
+    dump_code()
+
+

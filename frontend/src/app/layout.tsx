@@ -9,20 +9,33 @@ const lexend = Lexend({
   subsets: ["latin"],
   weight: ['300', '400', '600'],
   variable: '--font-lexend',
+  display: 'swap',
 });
 
-// Essential for Telegram Mini Apps to prevent zooming and fix height
+// Essential Telegram Mini App Viewport Settings
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: '#0f172a', // Dark slate for premium feel
 };
 
 export const metadata: Metadata = {
   title: "Nafas Wellness",
-  description: "The Pulse of UAE Wellness",
+  description: "The Pulse of UAE Wellness • AI Coach + SocialFi on TON",
+  icons: {
+    icon: "/favicon.ico",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Nafas",
+  },
+  other: {
+    "telegram:mini-app": "true",
+  },
 };
 
 export default function RootLayout({
@@ -32,10 +45,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={lexend.variable}>
-      <body className="font-sans antialiased premium-bg overflow-x-hidden select-none">
+      <body className="font-sans antialiased premium-bg overflow-x-hidden select-none min-h-[100dvh]">
         
-        {/* Global Atmospheric Auras (The "Real" Clouds) */}
-        {/* These sit behind everything to create depth */}
+        {/* Global Atmospheric Auras (Realistic Cloud Depth) */}
         <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
           <div className="aura-blur w-[500px] h-[500px] bg-white/40 -top-20 -left-20 animate-pulse" />
           <div className="aura-blur w-[400px] h-[400px] bg-blue-200/30 top-1/2 -right-20" />
@@ -48,7 +60,7 @@ export default function RootLayout({
             {children}
           </main>
 
-          {/* Floating Navigation */}
+          {/* Global Floating Bottom Navigation */}
           <BottomNav />
         </Providers>
 
