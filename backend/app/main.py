@@ -1,74 +1,45 @@
 import os
-import json
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
-from dotenv import load_dotenv
 
-load_dotenv()
+app = FastAPI()
 
-app = FastAPI(title="Nafas AI Wellness Backend")
-
-# 1. Update Origins to include your NEW Vercel URL
-origins = [
-    "http://localhost:3000",
-    "https://nafas-orpin.vercel.app",
-    "https://nafas-beige.vercel.app",  # Added your active URL
-    "https://nafas-git-main-allan0s-projects.vercel.app",
-    "*" # Temporary: allow all while debugging
-]
-
+# FULL PERMISSIVE CORS FOR DEBUGGING
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Use "*" for now to stop CORS errors during testing
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "core_data", "wellness_knowledge.json")
-
-def load_knowledge():
-    try:
-        if os.path.exists(DATA_PATH):
-            with open(DATA_PATH, "r") as f:
-                return json.load(f)
-        return {}
-    except Exception:
-        return {}
+# Integrated Material Knowledge (Hardcoded to prevent 404/File errors)
+KNOWLEDGE = {
+    "yoga": [{"pose": "Sitali Pranayama", "secret": "Cooling Breath", "detail": "Curling tongue to lower body temp."}],
+    "endurance": [{"topic": "Running", "secret": "2:2 Rhythm", "detail": "Sync breath with steps."}],
+    "smoking_cessation": [{"tactic": "Box Breath", "detail": "4-4-4-4 rhythm to stop cravings."}],
+    "dental_hygiene": [{"topic": "Dental", "secret": "Alkaline Rinsing", "detail": "Salt water after dates."}]
+}
 
 class UserQuery(BaseModel):
     goal: str
-    location: Optional[str] = "Dubai"
+    location: str = "Dubai"
 
-@app.get("/")
-def read_root():
-    return {"status": "Nafas API Online"}
-
-# ENSURE THIS PATH IS EXACTLY "/recommend"
 @app.post("/recommend")
-async def get_recommendations(query: UserQuery):
-    data = load_knowledge()
+async def recommend(query: UserQuery):
     goal = query.goal.lower()
-    
-    # Logic... (keep your existing matching logic here)
-    if "yoga" in goal:
-        res = data.get("yoga", [])
-    elif "run" in goal or "endurance" in goal:
-        res = data.get("endurance", [])
-    elif "smoke" in goal or "quit" in goal:
-        res = data.get("smoking_cessation", [])
-    elif "teeth" in goal or "dental" in goal:
-        res = data.get("dental_hygiene", [])
-    elif "fat" in goal or "weight" in goal:
-        res = data.get("fat_reduction", [])
-    else:
-        res = [{"secret": "Nafas Awareness", "detail": "Take a deep breath."}]
-
+    if "yoga" in goal: res = KNOWLEDGE["yoga"]
+    elif "run" in goal or "endurance" in goal: res = KNOWLEDGE["endurance"]
+    elif "smoke" in goal: res = KNOWLEDGE["smoking_cessation"]
+    elif "teeth" in goal or "dental" in goal: res = KNOWLEDGE["dental_hygiene"]
+    else: res = [{"secret": "Nafas", "detail": "Take a deep breath."}]
     return {"status": "success", "recommendations": res}
 
+@app.get("/")
+async def health():
+    return {"status": "Nafas API Online"}
+
 @app.get("/nearby")
-def get_nearby():
+async def nearby():
     return {"spots": [{"name": "Kite Beach Yoga", "activity": "Yoga"}]}
