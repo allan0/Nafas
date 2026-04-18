@@ -1,35 +1,50 @@
+import os
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import json
-import os
+from typing import List, Optional
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Nafas AI Wellness Backend")
 
-# Enable CORS so your Vercel frontend can talk to this API
+# Security: Allow your Vercel URL to access this API
+origins = [
+    "http://localhost:3000",
+    os.getenv("FRONTEND_URL", "*"),
+    "https://nafas-orpin.vercel.app",
+    "https://nafas-git-main-allan0s-projects.vercel.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Set path to the knowledge base
+# Load Knowledge Base
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_DIR, "core_data/wellness_knowledge.json")
 
 def load_knowledge():
-    if not os.path.exists(DATA_PATH):
+    try:
+        with open(DATA_PATH, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error loading JSON: {e}")
         return {}
-    with open(DATA_PATH, "r") as f:
-        return json.load(f)
 
+# Data Models
 class UserQuery(BaseModel):
     goal: str
-    location: str = "Dubai"
+    location: Optional[str] = "Dubai"
 
 @app.get("/")
-def home():
+def read_root():
     return {"status": "Nafas API Online", "region": "UAE"}
 
 @app.post("/recommend")
@@ -48,19 +63,13 @@ async def get_recommendations(query: UserQuery):
         res = data.get("dental_hygiene", [])
     elif "fat" in goal or "weight" in goal:
         res = data.get("fat_reduction", [])
-    elif "meal" in goal or "food" in goal:
-        res = data.get("meal_plans", [])
     else:
-        return {
-            "category": "General", 
-            "recommendations": [{"secret": "Deep Breathing", "detail": "Take 10 deep breaths today."}]
-        }
+        res = [{"secret": "Nafas Awareness", "detail": "Focus on 5 deep breaths while I find better data for you."}]
 
     return {"status": "success", "category": goal, "recommendations": res}
 
 @app.get("/nearby")
 def get_nearby():
-    # UAE landmarks/wellness spots
     return {
         "spots": [
             {"name": "Kite Beach Yoga", "lat": 25.164, "lng": 55.201, "activity": "Yoga"},
