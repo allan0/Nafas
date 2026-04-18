@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { Award, Flame, Calendar, Wallet as WalletIcon, Settings, LogOut } from 'lucide-react';
+import { Award, Flame, Calendar, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { TonConnectButton } from '@tonconnect/ui-react';
 import TelegramWebApp from '@twa-dev/sdk';
 
@@ -8,7 +8,6 @@ export default function ProfileContent() {
   const [username, setUsername] = useState("Allan");
   const [haptic, setHaptic] = useState<any>(null);
 
-  // Initialize Telegram + Haptics + User Data
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const tg = TelegramWebApp;
@@ -17,14 +16,13 @@ export default function ProfileContent() {
 
       setHaptic(tg.HapticFeedback);
 
-      // Pull real Telegram user name
       if (tg.initDataUnsafe?.user) {
         setUsername(tg.initDataUnsafe.user.first_name || "Wellness Seeker");
       }
     }
   }, []);
 
-  const triggerHaptic = (type: 'success' | 'error' | 'warning' | 'light' | 'medium' | 'heavy') => {
+  const triggerHaptic = (type: string) => {
     if (haptic) {
       if (['success', 'error', 'warning'].includes(type)) {
         haptic.notificationOccurred(type);
@@ -34,7 +32,6 @@ export default function ProfileContent() {
     }
   };
 
-  // Sample stats (will be dynamic from backend/DB in future step)
   const stats = {
     nafEarned: 1245,
     activitiesCompleted: 47,
@@ -54,7 +51,6 @@ export default function ProfileContent() {
         <h1 className="text-3xl font-semibold text-slate-900">{username}</h1>
         <p className="text-sm text-slate-500 mt-1">UAE Wellness Advocate</p>
         
-        {/* TON Wallet Connect */}
         <div className="mt-6 w-full max-w-[240px]">
           <TonConnectButton />
         </div>
@@ -62,28 +58,19 @@ export default function ProfileContent() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-3 gap-4 mb-10">
-        <div 
-          onClick={() => triggerHaptic('medium')}
-          className="bg-white/90 rounded-3xl p-5 text-center shadow-sm active:scale-[0.97] transition-all cursor-pointer"
-        >
+        <div onClick={() => triggerHaptic('medium')} className="bg-white/90 rounded-3xl p-5 text-center shadow-sm active:scale-[0.97] transition-all cursor-pointer">
           <Award className="mx-auto text-emerald-500 mb-3" size={32} />
           <div className="text-2xl font-bold text-slate-900">{stats.nafEarned}</div>
           <div className="text-[10px] text-slate-500 tracking-widest">NAF EARNED</div>
         </div>
 
-        <div 
-          onClick={() => triggerHaptic('medium')}
-          className="bg-white/90 rounded-3xl p-5 text-center shadow-sm active:scale-[0.97] transition-all cursor-pointer"
-        >
+        <div onClick={() => triggerHaptic('medium')} className="bg-white/90 rounded-3xl p-5 text-center shadow-sm active:scale-[0.97] transition-all cursor-pointer">
           <Calendar className="mx-auto text-blue-500 mb-3" size={32} />
           <div className="text-2xl font-bold text-slate-900">{stats.activitiesCompleted}</div>
           <div className="text-[10px] text-slate-500 tracking-widest">ACTIVITIES</div>
         </div>
 
-        <div 
-          onClick={() => triggerHaptic('medium')}
-          className="bg-white/90 rounded-3xl p-5 text-center shadow-sm active:scale-[0.97] transition-all cursor-pointer"
-        >
+        <div onClick={() => triggerHaptic('medium')} className="bg-white/90 rounded-3xl p-5 text-center shadow-sm active:scale-[0.97] transition-all cursor-pointer">
           <Flame className="mx-auto text-orange-500 mb-3" size={32} />
           <div className="text-2xl font-bold text-slate-900">{stats.currentStreak}</div>
           <div className="text-[10px] text-slate-500 tracking-widest">DAY STREAK</div>
@@ -129,7 +116,6 @@ export default function ProfileContent() {
         </button>
       </div>
 
-      {/* Footer Note */}
       <div className="text-center mt-12">
         <p className="text-[10px] text-slate-400">
           Nafas • Built for the UAE • Breathe Better, Live Stronger
