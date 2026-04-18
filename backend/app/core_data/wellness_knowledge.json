@@ -1,5 +1,48 @@
-"analytics_pro": {
-  "recovery_score": "Calculated via Heart Rate Variability (HRV) and deep sleep cycles (REM).",
-  "breath_efficiency": "Correlation between nasal breathing duration and VO2 Max improvement.",
-  "social_impact": "Tokens earned via community tipping vs. individual exercise."
+{
+  "yoga": [
+    {
+      "pose": "Sitali Pranayama",
+      "secret": "The Cooling Breath",
+      "benefit": "Instantly lowers core body temperature by 2-3 degrees.",
+      "uae_context": "Crucial for high-humidity months in Dubai (July-Sept)."
+    },
+    {
+      "pose": "Viparita Karani",
+      "secret": "Legs up the Wall",
+      "benefit": "Resets the nervous system and reduces lower-limb edema.",
+      "uae_context": "Perfect for recovery after standing shifts or long DXB flights."
+    }
+  ],
+  "endurance": [
+    {
+      "topic": "Breath Control",
+      "secret": "The 2:2 Rhythm",
+      "detail": "Inhale for two steps, exhale for two steps. Prevents side-stitches by stabilizing the diaphragm.",
+      "uae_context": "Maintains oxygen saturation during heat-stressed runs."
+    }
+  ],
+  "smoking_cessation": [
+    {
+      "tactic": "The 5-Minute Box Breath",
+      "secret": "Haptic Mimicry",
+      "detail": "4s inhale, 4s hold, 4s exhale, 4s hold. Mimics the deep lung expansion of a puff to trick the brain into calm.",
+      "science": "Stimulates the Vagus nerve to release dopamine naturally."
+    }
+  ],
+  "dental_hygiene": [
+    {
+      "topic": "Longevity Link",
+      "secret": "Alkaline Rinsing",
+      "detail": "Rinsing with salt-water/baking soda after dates or coffee to neutralize acid.",
+      "benefit": "Stops enamel erosion from high-sugar local diets."
+    }
+  ],
+  "fat_reduction": [
+    {
+      "topic": "Metabolic Optimization",
+      "secret": "Thermogenic Spices",
+      "detail": "Adding ginger and turmeric to Arabic coffee to boost metabolism.",
+      "uae_context": "Ideal for sedentary AC environments."
+    }
+  ]
 }
