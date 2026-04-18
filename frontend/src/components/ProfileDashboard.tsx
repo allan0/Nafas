@@ -1,0 +1,6 @@
+'use client';
+// ... all your imports from the profile page ...
+
+export default function ProfileDashboard() {
+   // ... all your profile logic ...
+}
