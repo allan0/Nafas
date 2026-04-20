@@ -9,7 +9,7 @@ const navItems = [
   { name: 'Home', icon: Home, path: '/' },
   { name: 'Flow', icon: Leaf, path: '/activities' },
   { name: 'Tribe', icon: Users, path: '/community' },
-  { name: 'Coach', icon: Sparkles, path: '/ai' },
+  //{ name: 'Coach', icon: Sparkles, path: '/ai' },
   { name: 'Self', icon: User, path: '/profile' },
 ];
 
