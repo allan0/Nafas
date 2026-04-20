@@ -1,161 +1,153 @@
 'use client';
-
 import { useEffect, useState } from 'react';
-import { Award, Flame, MapPin, Zap, Wind } from 'lucide-react';
-import { TonConnectButton } from '@tonconnect/ui-react';
+import { Award, Flame, MapPin, Zap, Sparkles, User, Globe } from 'lucide-react';
+import { useTonConnectUI } from '@tonconnect/ui-react';
 import TelegramWebApp from '@twa-dev/sdk';
+import { motion, AnimatePresence } from 'framer-motion';
+import BreathProtocol from './BreathProtocol';
+import Link from 'next/link';
 
-const API_URL = "https://nafas-backend.onrender.com";
+const API_URL = "https://nafas-jur5.onrender.com";
 
 export default function MainDashboard() {
-  const [username, setUsername] = useState("Seeker");
-  const [wellnessScore] = useState(87); // Will be dynamic from DB in future step
+  const [tonConnectUI] = useTonConnectUI();
+  const [user, setUser] = useState<any>(null);
+  const [xp, setXp] = useState(1250);
   const [nearby, setNearby] = useState<any[]>([]);
-  const [haptic, setHaptic] = useState<any>(null);
-  const [loadingNearby, setLoadingNearby] = useState(true);
+  const [showProtocol, setShowProtocol] = useState(false);
+  const [vitality, setVitality] = useState(0);
 
   useEffect(() => {
-    // Initialize Telegram Mini App
     if (typeof window !== 'undefined') {
       const tg = TelegramWebApp;
       tg.ready();
-      tg.expand();
-      tg.enableClosingConfirmation();
+      setUser(tg.initDataUnsafe?.user);
       
-      setHaptic(tg.HapticFeedback);
+      // Animate the Vitality Bar on load
+      setTimeout(() => setVitality(87), 500);
 
-      // Get real Telegram user data
-      if (tg.initDataUnsafe?.user) {
-        setUsername(tg.initDataUnsafe.user.first_name || "Wellness Seeker");
-      }
+      // Fetch Live Nearby Data
+      const getNearbyData = async () => {
+        try {
+          const res = await fetch(`${API_URL}/nearby`);
+          const data = await res.json();
+          setNearby(data.spots);
+        } catch (e) { console.error("Nearby data offline"); }
+      };
+      getNearbyData();
     }
-
-    // Fetch real nearby spots from backend
-    const fetchNearby = async () => {
-      setLoadingNearby(true);
-      try {
-        const res = await fetch(`${API_URL}/nearby`);
-        const data = await res.json();
-        setNearby(data.spots || []);
-      } catch (e) {
-        console.error("Failed to fetch nearby spots:", e);
-        // Graceful fallback
-        setNearby([
-          { name: "Kite Beach Yoga", activity: "Yoga", location: "Dubai" },
-          { name: "Al Qudra Cycle Track", activity: "Cycling", location: "Dubai" }
-        ]);
-      } finally {
-        setLoadingNearby(false);
-      }
-    };
-
-    fetchNearby();
   }, []);
 
-  const triggerBreathProtocol = () => {
-    if (haptic) {
-      haptic.impactOccurred('heavy');
-      setTimeout(() => haptic.notificationOccurred('success'), 300);
-    }
-    
-    // Premium feel: Start breath session
-    alert("🌬️ Breath Protocol Started\n\nInhale deeply for 4 seconds...\nHold for 4...\nExhale slowly for 6...\n\nYou're doing great. Stay consistent!");
-    
-    // Future: Could trigger a guided breathing animation or audio
-  };
-
   return (
-    <div className="relative min-h-screen w-full overflow-x-hidden scrollbar-hide pb-24">
-      
-      {/* Dynamic Atmospheric Background (Cloud/Aura Effect) */}
-      <div className="aura-blur w-[400px] h-[400px] bg-white top-[-100px] left-[-50px]" />
-      <div className="aura-blur w-[300px] h-[300px] bg-emerald-200 bottom-[100px] right-[-50px] opacity-40" />
-
-      <div className="p-6 relative z-10 space-y-8">
-        
-        {/* Header */}
-        <div className="flex justify-between items-center">
+    <div className="relative min-h-screen w-full scrollbar-hide pb-32">
+      {/* 1. TOP BAR: Profile, XP, Wallet LED */}
+      <div className="p-6 flex justify-between items-center bg-white/20 backdrop-blur-md sticky top-0 z-40">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-slate-200">
+            {user?.photo_url ? <img src={user.photo_url} alt="pfp" /> : <User className="p-2 text-slate-400" />}
+          </div>
           <div>
-            <h1 className="text-3xl font-light text-slate-900 tracking-tight">
-              {username} <span className="text-xl opacity-50">/ Nafas</span>
-            </h1>
-            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold mt-1">UAE Mindful Protocol</p>
-          </div>
-          <TonConnectButton />
-        </div>
-
-        {/* Premium Status Bar */}
-        <div className="glass-card rounded-[2rem] p-4 flex items-center justify-between border-white/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/50 rounded-2xl flex items-center justify-center text-xl shadow-inner">
-              🧘
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800">Status: Deep Flow</p>
-              <p className="text-[9px] text-slate-500">Connected to TON • UAE Ready</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 bg-emerald-500/10 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black">
-            <Zap size={10} fill="currentColor" /> PREMIUM
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Wellness XP</p>
+            <p className="text-sm font-black text-slate-900">{xp}</p>
           </div>
         </div>
 
-        {/* Wellness Score - Elegant Typography */}
-        <div className="py-8 text-center">
-          <div className="relative inline-block">
-             <span className="text-9xl font-thin tracking-tighter text-slate-900 leading-none">
-               {wellnessScore}
-             </span>
-             <span className="absolute -top-2 -right-6 text-xl font-bold text-emerald-500">%</span>
+        <div className="flex items-center gap-4">
+          {/* Wallet LED Indicator */}
+          <div className="flex items-center gap-2 bg-white/40 px-3 py-1.5 rounded-full border border-white/30 shadow-sm">
+            <motion.div 
+              animate={{ opacity: [1, 0.4, 1] }} 
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className={`w-2.5 h-2.5 rounded-full ${tonConnectUI.connected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'}`}
+            />
+            <span className="text-[9px] font-black uppercase text-slate-700">TON</span>
           </div>
-          <p className="text-xs tracking-[0.4em] text-slate-400 uppercase mt-4">Breath Vitality Score</p>
-          <p className="text-[10px] text-emerald-600 mt-1">4-day streak 🔥</p>
-        </div>
-
-        {/* Nearby Wellness Spots - Live from Backend */}
-        <div className="glass-card rounded-[2.5rem] p-6 space-y-6">
-          <h3 className="text-sm font-bold flex items-center gap-2 text-slate-700">
-            <MapPin size={16} className="text-emerald-500" />
-            Nearby Wellness <span className="opacity-30">/ UAE</span>
-          </h3>
-          
-          <div className="space-y-3">
-            {loadingNearby ? (
-              <div className="text-center py-8 text-slate-400 text-xs">Finding wellness spots near you...</div>
-            ) : nearby.length > 0 ? (
-              nearby.map((spot, i) => (
-                <div key={i} className="flex items-center justify-between bg-white/30 p-4 rounded-3xl border border-white/20 hover:bg-white/50 transition">
-                  <div>
-                    <span className="text-sm font-semibold block">{spot.name}</span>
-                    <span className="text-xs text-slate-500">{spot.location}</span>
-                  </div>
-                  <div className="text-[10px] font-bold text-emerald-600 bg-white px-3 py-1 rounded-full shadow-sm">
-                    {spot.activity}
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8 text-slate-400 text-xs italic">No nearby spots found at the moment.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Primary Action - Breath Protocol */}
-        <button 
-          onClick={triggerBreathProtocol}
-          className="w-full bg-slate-900 hover:bg-slate-800 text-white py-6 rounded-[2rem] font-bold shadow-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 group"
-        >
-          <Wind className="group-active:rotate-12 transition" size={24} />
-          Begin Breath Protocol
-        </button>
-
-        {/* Quick Tip */}
-        <div className="text-center">
-          <p className="text-[10px] text-slate-500">
-            Consistent daily breath work improves your score by up to 12% in 7 days
-          </p>
         </div>
       </div>
+
+      <div className="p-6 space-y-8">
+        {/* 2. PROGRESS BAR: Moving Vitality */}
+        <div className="text-center py-4">
+          <h3 className="text-xs font-black uppercase tracking-[0.3em] text-slate-400 mb-6">Breath Vitality</h3>
+          <div className="relative w-full h-4 bg-white/30 rounded-full overflow-hidden border border-white/50">
+            <motion.div 
+              initial={{ width: 0 }}
+              animate={{ width: `${vitality}%` }}
+              transition={{ duration: 2, ease: "easeOut" }}
+              className="h-full bg-gradient-to-r from-emerald-400 via-blue-400 to-indigo-500 relative"
+            >
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10" />
+            </motion.div>
+          </div>
+          <p className="text-5xl font-black text-slate-800 mt-4 tracking-tighter">{vitality}%</p>
+        </div>
+
+        {/* 3. NEARBY: Real Data Map Feature */}
+        <div className="glass-card rounded-[2.5rem] p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-sm font-bold flex items-center gap-2 text-slate-700 uppercase tracking-tight">
+              <Globe size={16} className="text-blue-500" />
+              UAE Wellness Map
+            </h3>
+            <button 
+              onClick={() => TelegramWebApp.openLink(`https://www.google.com/maps/search/wellness+near+me/`)}
+              className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl uppercase"
+            >
+              Pop Map
+            </button>
+          </div>
+          
+          <div className="space-y-3 max-h-48 overflow-y-auto pr-2 scrollbar-hide">
+            {nearby.map((spot, i) => (
+              <motion.div 
+                whileTap={{ scale: 0.98 }}
+                onClick={() => TelegramWebApp.openLink(`https://www.google.com/maps?q=${spot.lat},${spot.lng}`)}
+                key={i} 
+                className="flex items-center justify-between bg-white/40 p-4 rounded-2xl border border-white/20 active:bg-white/60 transition-all"
+              >
+                <div>
+                    <span className="text-sm font-bold block text-slate-800">{spot.name}</span>
+                    <span className="text-[10px] text-slate-500 font-medium tracking-tight">Nearby UAE Activity</span>
+                </div>
+                <div className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black shadow-lg shadow-emerald-500/20">
+                  {spot.activity}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        <button 
+          onClick={() => setShowProtocol(true)}
+          className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-bold shadow-2xl active:scale-[0.98] transition-all hover:bg-slate-800"
+        >
+          Begin Breath Protocol
+        </button>
+      </div>
+
+      {/* 4. FLOATING AI BUTTON */}
+      <Link href="/ai">
+        <motion.div 
+          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+          className="fixed bottom-28 right-6 w-16 h-16 bg-white rounded-full shadow-2xl flex items-center justify-center border-4 border-emerald-400 z-50 cursor-pointer"
+        >
+          <Sparkles className="text-emerald-500" />
+          <div className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 rounded-full border-2 border-white animate-pulse" />
+        </motion.div>
+      </Link>
+
+      {/* 5. MODAL: Breath Protocol */}
+      <AnimatePresence>
+        {showProtocol && (
+          <BreathProtocol 
+            onClose={() => setShowProtocol(false)} 
+            onComplete={(newXp) => {
+              setXp(prev => prev + newXp);
+              setVitality(v => Math.min(100, v + 2));
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
