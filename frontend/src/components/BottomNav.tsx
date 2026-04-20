@@ -7,7 +7,9 @@ import TelegramWebApp from '@twa-dev/sdk';
 
 const navItems = [
   { name: 'Home', icon: Home, path: '/' },
-  { name: 'Flow', icon: Leaf, path: '/activities' },
+  //{ name: 'Flow', icon: Leaf, path: '/activities' },
+  // Change the 'Flow' item in navItems
+{ name: 'Earn', icon: () => <span className="text-xl">💰</span>, path: '/activities' },
   { name: 'Tribe', icon: Users, path: '/community' },
   //{ name: 'Coach', icon: Sparkles, path: '/ai' },
   { name: 'Self', icon: User, path: '/profile' },
