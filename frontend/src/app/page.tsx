@@ -27,6 +27,19 @@ const ZenLoader = () => (
  * 'ssr: false' ensures this component NEVER runs on the server, 
  * preventing crashes during Vercel builds.
  */
+ 
+const EarnContent = dynamic(() => import('@/components/EarnContent'), { 
+  ssr: false,
+  loading: () => (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-pulse text-emerald-600 font-bold uppercase tracking-widest">Loading Earn Vault...</div>
+    </div>
+  )
+});
+
+export default function EarnPage() {
+  return <EarnContent />;
+}
 const MainDashboard = dynamic(() => import('@/components/MainDashboard'), { 
   ssr: false,
   loading: () => <ZenLoader />

@@ -6,24 +6,35 @@ export function useWellnessData() {
   const [tasks, setTasks] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const savedXp = localStorage.getItem('nafas_xp');
-    const savedTasks = localStorage.getItem('nafas_tasks');
-    if (savedXp) setXp(parseInt(savedXp));
-    if (savedTasks) setTasks(JSON.parse(savedTasks));
+    // Only run this in the browser
+    if (typeof window !== 'undefined') {
+      const savedXp = localStorage.getItem('nafas_xp');
+      const savedTasks = localStorage.getItem('nafas_tasks');
+      if (savedXp) setXp(parseInt(savedXp));
+      if (savedTasks) setTasks(JSON.parse(savedTasks));
+    }
   }, []);
 
   const addXp = (amount: number) => {
-    const newXp = xp + amount;
-    setXp(newXp);
-    localStorage.setItem('nafas_xp', newXp.toString());
+    setXp((prev) => {
+      const newXp = prev + amount;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('nafas_xp', newXp.toString());
+      }
+      return newXp;
+    });
   };
 
   const completeTask = (taskId: string, reward: number) => {
-    if (tasks[taskId]) return; // Prevent double claiming
-    const newTasks = { ...tasks, [taskId]: true };
-    setTasks(newTasks);
-    localStorage.setItem('nafas_tasks', JSON.stringify(newTasks));
-    addXp(reward);
+    setTasks((prev) => {
+      if (prev[taskId]) return prev;
+      const newTasks = { ...prev, [taskId]: true };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('nafas_tasks', JSON.stringify(newTasks));
+      }
+      addXp(reward);
+      return newTasks;
+    });
   };
 
   return { xp, tasks, addXp, completeTask };
