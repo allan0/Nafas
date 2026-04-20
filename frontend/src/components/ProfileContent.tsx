@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { 
   Award, Flame, Calendar as CalIcon, Wallet as WalletIcon, 
   Settings, History, Plus, MapPin, Image as ImageIcon,
-  ChevronRight, TrendingUp, BarChart3, Info, Camera
+  ChevronRight, TrendingUp, BarChart3, Info, Camera, Zap
 } from 'lucide-react';
 import { TonConnectButton } from '@tonconnect/ui-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -89,7 +89,7 @@ export default function ProfileContent() {
             <div className="glass-card p-6 rounded-[2.5rem] bg-slate-900 text-white overflow-hidden relative">
                 <BarChart3 className="absolute top-4 right-4 text-emerald-500 opacity-30" size={60} />
                 <p className="text-[9px] font-black text-emerald-400 uppercase mb-2">Performance Data</p>
-                <h3 className="text-xl font-bold mb-4">
+                <h3 className="text-xl font-bold mb-4 leading-tight">
                     {analysis.diff >= 0 ? `You walked ${analysis.diff.toFixed(2)} km more than yesterday!` : `Keep pushing! You're ${Math.abs(analysis.diff).toFixed(2)} km behind yesterday.`}
                 </h3>
                 <div className="flex gap-4">
@@ -121,9 +121,9 @@ export default function ProfileContent() {
                             <span className="text-xs font-black text-emerald-600">+{item.xp}</span>
                         </div>
                     )) : (
-                        <button onClick={() => window.location.href='/'} className="w-full py-10 glass-card rounded-[2rem] border-dashed border-slate-300 text-slate-400 text-xs font-bold">
-                            No data. Begin Protocol →
-                        </button>
+                        <div className="w-full py-10 glass-card rounded-[2rem] border-dashed border-slate-300 text-slate-400 text-xs font-bold text-center">
+                            No history yet. Start a protocol.
+                        </div>
                     )}
                 </div>
             </div>
@@ -135,8 +135,9 @@ export default function ProfileContent() {
                     {yogaPoses.map((pose, i) => (
                         <motion.div 
                             key={i} 
+                            whileTap={{ scale: 0.95 }}
                             onClick={() => setSelectedPose(pose)}
-                            className="min-w-[200px] h-32 rounded-3xl bg-slate-100 overflow-hidden relative active:scale-95 transition-transform"
+                            className="min-w-[200px] h-32 rounded-3xl bg-slate-100 overflow-hidden relative cursor-pointer"
                         >
                             <img src={pose.img} className="w-full h-full object-cover" alt={pose.title} />
                             <div className="absolute inset-0 bg-black/30 flex items-end p-4">
@@ -153,13 +154,12 @@ export default function ProfileContent() {
         {activeTab === 'calendar' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key="calendar" className="space-y-6">
             <div className="flex justify-between items-center px-2">
-                <h3 className="text-sm font-black text-slate-900 uppercase">April 2026</h3>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Protocol Calendar</h3>
                 <button onClick={() => setShowEventModal(true)} className="bg-slate-900 text-white p-2 rounded-xl shadow-lg"><Plus size={18}/></button>
             </div>
 
-            {/* Event List */}
             <div className="space-y-4">
-                {events.map(event => (
+                {events.length > 0 ? events.map(event => (
                     <div key={event.id} className="glass-card p-0 rounded-[2.5rem] overflow-hidden border-white/50">
                         <div className="h-32 bg-slate-200 relative">
                             {event.banner ? <img src={event.banner} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ImageIcon className="text-slate-400"/></div>}
@@ -182,7 +182,11 @@ export default function ProfileContent() {
                             )}
                         </div>
                     </div>
-                ))}
+                )) : (
+                    <div className="text-center py-20 opacity-30 italic text-sm font-bold uppercase tracking-widest">
+                        Your calendar is clear.
+                    </div>
+                )}
             </div>
           </motion.div>
         )}
@@ -190,24 +194,26 @@ export default function ProfileContent() {
         {/* WALLET TAB */}
         {activeTab === 'wallet' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key="wallet" className="space-y-6 text-center pt-8">
-            <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
+            <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 shadow-inner">
                 <WalletIcon size={48} />
             </div>
-            <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{xp} <span className="text-sm italic text-emerald-500">$NAF</span></h2>
-            <p className="text-xs text-slate-500 font-medium px-10">Your XP acts as a pre-token score for the upcoming $NAF airdrop.</p>
+            <h2 className="text-4xl font-black text-slate-900 tracking-tighter">{xp} <span className="text-sm italic text-emerald-500 uppercase tracking-widest">$NAF</span></h2>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest px-10 leading-relaxed">
+                Tokens are indexed for the UAE Protocol Airdrop.
+            </p>
             
-            <div className="pt-8">
+            <div className="pt-8 flex justify-center">
                 <TonConnectButton />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-10">
+            <div className="grid grid-cols-2 gap-4 pt-10 px-4">
                 <div className="glass-card p-5 rounded-3xl border-white/50">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">History</p>
-                    <button className="text-xs font-bold flex items-center gap-1 mx-auto">View All <ChevronRight size={14}/></button>
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">History</p>
+                    <button className="text-xs font-bold text-slate-800 flex items-center gap-1 mx-auto">View All <ChevronRight size={14}/></button>
                 </div>
-                <div className="glass-card p-5 rounded-3xl border-white/50">
-                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Swap</p>
-                    <button className="text-xs font-bold text-slate-300 cursor-not-allowed">Locked</button>
+                <div className="glass-card p-5 rounded-3xl border-white/50 opacity-50">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Swap</p>
+                    <button className="text-xs font-bold text-slate-400 cursor-not-allowed">Coming Soon</button>
                 </div>
             </div>
           </motion.div>
@@ -217,7 +223,10 @@ export default function ProfileContent() {
       {/* YOGA POSE POP-OUT */}
       <AnimatePresence>
         {selectedPose && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} 
+              className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6"
+            >
                 <div className="bg-white rounded-[3rem] w-full max-w-sm overflow-hidden shadow-2xl">
                     <div className="h-64 bg-slate-200 relative">
                         <img src={selectedPose.img} className="w-full h-full object-cover" />
@@ -226,7 +235,12 @@ export default function ProfileContent() {
                     <div className="p-8">
                         <h3 className="text-2xl font-black text-slate-900 mb-4">{selectedPose.title}</h3>
                         <p className="text-sm text-slate-500 leading-relaxed mb-8">{selectedPose.desc}</p>
-                        <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2"><Camera size={16}/> Record & Update to Tribe</button>
+                        <button 
+                            onClick={() => alert("Photo capture logic triggered")}
+                            className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs flex items-center justify-center gap-2"
+                        >
+                            <Camera size={16}/> Update Tribe Feed
+                        </button>
                     </div>
                 </div>
             </motion.div>
