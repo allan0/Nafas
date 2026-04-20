@@ -5,7 +5,6 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-# FULL PERMISSIVE CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,19 +25,20 @@ class UserQuery(BaseModel):
     goal: str
     location: str = "Dubai"
 
-# Ensure root returns status
 @app.get("/")
 async def health():
     return {"status": "Nafas API Online"}
 
-# NEW: Robust nearby endpoint
+# Normalizing both routes to prevent 404
 @app.get("/nearby")
+@app.get("/nearby/")
 async def nearby():
     return {
         "spots": [
-            {"name": "Kite Beach Yoga", "lat": 25.164, "lng": 55.201, "activity": "Yoga"},
-            {"name": "Al Qudra Cycle Track", "lat": 24.83, "lng": 55.37, "activity": "Cycling"},
-            {"name": "JBR Beach Run", "lat": 25.07, "lng": 55.13, "activity": "Running"}
+            {"name": "Kite Beach Yoga", "lat": 25.164, "lng": 55.201, "activity": "Yoga", "streetview": True},
+            {"name": "Al Qudra Cycle Track", "lat": 24.83, "lng": 55.37, "activity": "Cycling", "streetview": False},
+            {"name": "JBR Beach Basketball", "lat": 25.07, "lng": 55.13, "activity": "Sports", "streetview": True},
+            {"name": "Hamdan Sports Complex", "lat": 25.04, "lng": 55.31, "activity": "Swimming", "streetview": False}
         ]
     }
 
