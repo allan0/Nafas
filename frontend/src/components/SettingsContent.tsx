@@ -6,7 +6,7 @@ import {
   User, Droplets, Cigarette, Lock, Unlock, 
   Moon, Sun, CheckCircle2, Plus, Save, 
   ArrowLeft, Target, Ruler, Globe, Apple,
-  Dna, Weight, Scale, Info, X, ClipboardCheck
+  Dna, Weight, Scale, Info, X, ClipboardCheck, Settings as SettingsIcon
 } from 'lucide-react';
 import { useWellnessData } from '@/hooks/useWellnessData';
 import TelegramWebApp from '@twa-dev/sdk';
@@ -21,7 +21,7 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
   const [editMode, setEditMode] = useState(false);
   const activeRoutine = getActiveRoutine();
 
-  // Reflection State
+  // Reflection Modal State
   const [showReflection, setShowReflection] = useState(false);
   const [tomorrowGoal, setTomorrowGoal] = useState('');
 
@@ -32,8 +32,8 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
     setEditMode(false);
     TelegramWebApp.HapticFeedback.notificationOccurred('success');
     TelegramWebApp.showPopup({ 
-        title: 'Identity Synced',
-        message: 'Your Bio-Protocol data has been indexed for AI optimization.' 
+        title: 'Neural Sync',
+        message: 'Bio-identity successfully indexed for AI optimization.' 
     });
   };
 
@@ -52,17 +52,17 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
             onClick={() => editMode ? handleSaveProfile() : setEditMode(true)}
             className={`p-2 rounded-xl transition-all ${editMode ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-200'} shadow-lg`}
         >
-            {editMode ? <Save size={20} /> : <Dna size={20} />}
+            {editMode ? <Save size={20} /> : <SettingsIcon size={20} />}
         </button>
       </div>
 
       <div className="p-6 space-y-8">
         
-        {/* 2. PHYSICAL BIO-IDENTITY (Expanded) */}
+        {/* 2. PHYSICAL BIO-IDENTITY */}
         <div className="glass-card p-8 rounded-[3rem] border-white/60 shadow-2xl bg-white/40">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2.5 bg-emerald-500 text-white rounded-2xl shadow-lg shadow-emerald-500/20"><User size={20} /></div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Physical Bio-Data</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Physical Identity</h3>
           </div>
 
           <div className="grid grid-cols-2 gap-x-4 gap-y-6">
@@ -125,16 +125,16 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
                 </select>
               ) : (
                 <div className="p-4 bg-white/50 rounded-2xl text-xs font-black text-slate-700 border border-white/20 italic">
-                  {healthProfile.bodyType || 'Calculating...'}
+                  {healthProfile.bodyType || 'Analyzing...'}
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* 3. DAILY HABIT MINING */}
+        {/* 3. HABIT MINING */}
         <div className="space-y-4">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-4 italic">Resource Management</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] ml-4 italic">Daily Intake Protocols</p>
           
           <div className="grid grid-cols-1 gap-4">
             {/* Water */}
@@ -155,22 +155,22 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
                     <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-rose-500 shadow-xl border border-rose-50"><Cigarette size={28} /></div>
                     <div>
                         <h4 className="text-sm font-black text-slate-900 uppercase italic leading-none">Combustion</h4>
-                        <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase">{dailyCigs} Units Tracked</p>
+                        <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase">{dailyCigs} Units Indexed</p>
                     </div>
                 </div>
                 <button onClick={() => trackHabit('cigs', 1)} className="w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition"><Plus /></button>
             </div>
 
-            {/* Fruits (Micros) */}
+            {/* Fruits */}
             <div className="glass-card p-6 rounded-[2.5rem] flex items-center justify-between bg-emerald-50/20 border-white/40 shadow-xl">
                 <div className="flex items-center gap-5">
                     <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-emerald-500 shadow-xl border border-emerald-50"><Apple size={28} /></div>
                     <div>
-                        <h4 className="text-sm font-black text-slate-900 uppercase italic leading-none">Micro-Intake</h4>
-                        <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase">Daily Fruit Quota</p>
+                        <h4 className="text-sm font-black text-slate-900 uppercase italic leading-none">Micros</h4>
+                        <p className="text-[10px] font-bold text-emerald-600 mt-1 uppercase">Daily Fruit Intake</p>
                     </div>
                 </div>
-                <button onClick={() => logActivity('habit', 'Fruit Protocol', 5)} className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition"><CheckCircle2 /></button>
+                <button onClick={() => trackHabit('fruit', 1)} className="w-12 h-12 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition"><CheckCircle2 /></button>
             </div>
           </div>
         </div>
@@ -181,10 +181,10 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
             
             <div className={`glass-card p-6 rounded-[2.5rem] flex items-center justify-between border-white/60 shadow-xl ${activeRoutine === 'morning' ? 'bg-white border-amber-200' : 'opacity-40 grayscale'}`}>
                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-amber-50 rounded-xl text-amber-500"><Sun size={24} className={activeRoutine === 'morning' ? 'animate-spin-slow' : ''} /></div>
+                    <div className="p-3 bg-amber-50 rounded-xl text-amber-500"><Sun size={24} /></div>
                     <div>
                         <span className="text-sm font-black uppercase italic text-slate-900 block leading-none">Morning Alignment</span>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Gated: 05:00 - 11:00</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Available: 05:00 - 11:00</p>
                     </div>
                 </div>
                 {activeRoutine === 'morning' ? <Unlock size={16} className="text-emerald-500" /> : <Lock size={16} className="text-slate-300" />}
@@ -198,7 +198,7 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
                     <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600"><Moon size={24} /></div>
                     <div>
                         <span className="text-sm font-black uppercase italic text-slate-900 block leading-none">Evening Reflection</span>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Gated: 20:00 - 05:00</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">Available: 20:00 - 05:00</p>
                     </div>
                 </div>
                 {activeRoutine === 'evening' ? <Unlock size={16} className="text-indigo-500 animate-pulse" /> : <Lock size={16} className="text-slate-300" />}
@@ -218,29 +218,29 @@ export default function SettingsContent({ onBack }: { onBack: () => void }) {
                     
                     <div className="space-y-8">
                         <div className="flex items-center justify-between p-5 bg-slate-50 rounded-[1.5rem] border border-slate-100 shadow-inner">
-                            <span className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-2"><ClipboardCheck size={16}/> Protocol Checklist</span>
+                            <span className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-2"><ClipboardCheck size={16}/> Daily Protocol Check</span>
                             <CheckCircle2 size={24} className={dailyWater >= 8 ? 'text-emerald-500' : 'text-slate-200'} />
                         </div>
 
                         <div className="space-y-3">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tomorrow's Core Optimization</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tomorrow's Core Intention</p>
                             <textarea 
                                 value={tomorrowGoal}
                                 onChange={(e) => setTomorrowGoal(e.target.value)}
                                 className="w-full p-6 bg-slate-50 rounded-[2rem] border-none outline-none font-bold text-sm h-32 shadow-inner focus:ring-2 ring-indigo-500/20 transition-all"
-                                placeholder="Type target here (e.g. 5km Al Qudra)..."
+                                placeholder="State your primary objective..."
                             />
                         </div>
                         
                         <button 
                             onClick={() => {
-                                logActivity('task', 'Daily Reflection', 50);
+                                logActivity('task', 'Nightly Protocol Indexed', 50);
                                 TelegramWebApp.HapticFeedback.notificationOccurred('success');
                                 setShowReflection(false);
                             }}
                             className="w-full py-6 bg-slate-900 text-white rounded-[2.2rem] font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-all"
                         >
-                            Log Reflection & Archive Day
+                            Log Reflection & Claim 50 XP
                         </button>
                     </div>
                 </motion.div>

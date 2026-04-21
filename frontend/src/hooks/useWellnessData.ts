@@ -1,14 +1,14 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 
-// --- TYPE DEFINITIONS ---
+// --- DEFINITIVE INTERFACES ---
 export interface HistoryItem {
   id: string;
   type: 'breath' | 'run' | 'walk' | 'yoga' | 'meditation' | 'task' | 'habit';
   title: string;
   xp: number;
   date: string;
-  value?: string; // e.g., "5.20 km" or "1,200 steps"
+  value?: string; 
 }
 
 export interface WellnessEvent {
@@ -16,7 +16,7 @@ export interface WellnessEvent {
   title: string;
   description: string;
   location: string;
-  link: string; // YouTube or external link
+  link: string; 
   date: string;
   isPublic: boolean;
   banner: string;
@@ -28,7 +28,8 @@ export interface UserHealthProfile {
   height: string;
   ethnicity: string;
   age: string;
-  smokingHabit: number; // Cigs per day baseline
+  smokingHabit: number; 
+  fruitHabit: number; 
   waterGoal: number;
 }
 
@@ -40,17 +41,16 @@ export function useWellnessData() {
   const [tasks, setTasks] = useState<Record<string, boolean>>({});
   const [events, setEvents] = useState<WellnessEvent[]>([]);
   const [healthProfile, setHealthProfile] = useState<UserHealthProfile>({
-    bodyType: '', weight: '', height: '', ethnicity: '', age: '', smokingHabit: 0, waterGoal: 8
+    bodyType: '', weight: '', height: '', ethnicity: '', age: '', smokingHabit: 0, fruitHabit: 0, waterGoal: 8
   });
   const [dailyWater, setDailyWater] = useState(0);
   const [dailyCigs, setDailyCigs] = useState(0);
   const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // --- PERSISTENCE: LOAD ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const load = (key: string) => localStorage.getItem(key);
+      const load = (k: string) => localStorage.getItem(k);
       try {
         if (load('nafas_xp')) setXp(parseInt(load('nafas_xp')!));
         if (load('nafas_history')) setHistory(JSON.parse(load('nafas_history')!));
@@ -61,135 +61,65 @@ export function useWellnessData() {
         if (load('nafas_health')) setHealthProfile(JSON.parse(load('nafas_health')!));
         if (load('nafas_water')) setDailyWater(parseInt(load('nafas_water')!));
         if (load('nafas_cigs')) setDailyCigs(parseInt(load('nafas_cigs')!));
-        
-        // Streak Validation: Check if day was missed
-        const lastDate = load('nafas_last_date');
-        if (lastDate) {
-          const hoursSinceLast = (new Date().getTime() - new Date(lastDate).getTime()) / 3600000;
-          if (hoursSinceLast > 48) {
-            setStreak(0);
-            localStorage.setItem('nafas_streak', '0');
-          }
-        }
-      } catch (e) {
-        console.error("Protocol Data Corruption - Resetting State", e);
-      }
+      } catch (e) { console.error("Sync Error", e); }
       setIsLoaded(true);
     }
   }, []);
 
-  // --- PERSISTENCE: SAVE HELPER ---
-  const sync = (key: string, data: any) => {
-    localStorage.setItem(key, typeof data === 'string' ? data : JSON.stringify(data));
-  };
+  const sync = (k: string, v: any) => localStorage.setItem(k, JSON.stringify(v));
 
-  // --- CORE ACTIONS ---
   const logActivity = (type: HistoryItem['type'], title: string, rewardXp: number, value?: string) => {
     const now = new Date();
-    const newItem: HistoryItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      type, title, xp: rewardXp, date: now.toISOString(), value
-    };
-
-    setHistory(prev => {
-      const updated = [newItem, ...prev];
-      sync('nafas_history', updated);
-      return updated;
-    });
-
-    setXp(prev => {
-      const updated = prev + rewardXp;
-      sync('nafas_xp', updated);
-      return updated;
-    });
-
-    setVitality(v => {
-      const next = Math.min(100, v + 2);
-      sync('nafas_vitality', next);
-      return next;
-    });
-
-    // Update Streak logic
-    const lastDate = localStorage.getItem('nafas_last_date');
-    if (!lastDate || new Date(lastDate).toDateString() !== now.toDateString()) {
-      setStreak(s => {
-        const next = s + 1;
-        sync('nafas_streak', next);
-        return next;
-      });
-    }
-    sync('nafas_last_date', now.toISOString());
+    const newItem: HistoryItem = { id: Math.random().toString(36).substr(2, 9), type, title, xp: rewardXp, date: now.toISOString(), value };
+    const newHistory = [newItem, ...history];
+    const newXp = xp + rewardXp;
+    setXp(newXp);
+    setHistory(newHistory);
+    localStorage.setItem('nafas_xp', newXp.toString());
+    sync('nafas_history', newHistory);
   };
 
   const completeTask = (taskId: string, reward: number) => {
-    setTasks(prev => {
-      const updated = { ...prev, [taskId]: true };
-      sync('nafas_tasks', updated);
-      return updated;
-    });
-    logActivity('task', `Quest: ${taskId.split('_')[0]}`, reward);
+    if (tasks[taskId]) return;
+    const newTasks = { ...tasks, [taskId]: true };
+    setTasks(newTasks);
+    sync('nafas_tasks', newTasks);
+    logActivity('task', taskId.replace('_', ' '), reward);
   };
 
   const updateHealth = (data: Partial<UserHealthProfile>) => {
-    setHealthProfile(prev => {
-      const updated = { ...prev, ...data };
-      sync('nafas_health', updated);
-      return updated;
-    });
+    const updated = { ...healthProfile, ...data };
+    setHealthProfile(updated);
+    sync('nafas_health', updated);
   };
 
-  const trackHabit = (type: 'water' | 'cigs', amount: number) => {
+  const trackHabit = (type: 'water' | 'cigs' | 'fruit', amount: number) => {
     if (type === 'water') {
-      setDailyWater(prev => {
-        const next = prev + amount;
-        sync('nafas_water', next);
-        if (next % 4 === 0) logActivity('habit', 'Hydration Goal', 10);
-        return next;
-      });
-    } else {
-      setDailyCigs(prev => {
-        const next = Math.max(0, prev + amount);
-        sync('nafas_cigs', next);
-        return next;
-      });
+      const next = dailyWater + amount;
+      setDailyWater(next);
+      localStorage.setItem('nafas_water', next.toString());
+      if (next % 4 === 0) logActivity('habit', 'Hydration Sync', 10);
+    } else if (type === 'cigs') {
+      const next = Math.max(0, dailyCigs + amount);
+      setDailyCigs(next);
+      localStorage.setItem('nafas_cigs', next.toString());
     }
   };
 
-  const addEvent = (event: WellnessEvent) => {
-    setEvents(prev => {
-      const updated = [event, ...prev];
-      sync('nafas_events', updated);
-      return updated;
-    });
-  };
-
-  const updateEvent = (id: string, data: Partial<WellnessEvent>) => {
-    setEvents(prev => {
-      const updated = prev.map(ev => ev.id === id ? { ...ev, ...data } : ev);
-      sync('nafas_events', updated);
-      return updated;
-    });
-  };
-
-  const deleteEvent = (id: string) => {
-    setEvents(prev => {
-      const updated = prev.filter(ev => ev.id !== id);
-      sync('nafas_events', updated);
-      return updated;
-    });
-  };
+  const addEvent = (e: WellnessEvent) => { const n = [e, ...events]; setEvents(n); sync('nafas_events', n); };
+  const updateEvent = (id: string, d: Partial<WellnessEvent>) => { const n = events.map(e => e.id === id ? {...e, ...d} : e); setEvents(n); sync('nafas_events', n); };
+  const deleteEvent = (id: string) => { const n = events.filter(e => e.id !== id); setEvents(n); sync('nafas_events', n); };
 
   const getActiveRoutine = () => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 11) return 'morning';
-    if (hour >= 20 || hour < 5) return 'evening';
+    if (typeof window === 'undefined') return 'locked';
+    const hr = new Date().getHours();
+    if (hr >= 5 && hr < 11) return 'morning';
+    if (hr >= 20 || hr < 5) return 'evening';
     return 'locked';
   };
 
   return {
-    xp, history, vitality, streak, tasks, events,
-    healthProfile, dailyWater, dailyCigs, isLoaded, userCoords,
-    setUserCoords, getActiveRoutine, logActivity, updateHealth, 
-    trackHabit, addEvent, updateEvent, deleteEvent, completeTask
+    xp, history, vitality, streak, tasks, events, healthProfile, dailyWater, dailyCigs, isLoaded, userCoords,
+    setUserCoords, getActiveRoutine, logActivity, updateHealth, trackHabit, addEvent, updateEvent, deleteEvent, completeTask
   };
 }
