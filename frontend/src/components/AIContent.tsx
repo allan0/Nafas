@@ -1,158 +1,187 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, ThermometerSun, Droplet } from 'lucide-react';
+
+import { useState, useRef, useEffect } from 'react';
+import { 
+  Send, Loader2, Sparkles, Brain, ArrowRight, 
+  RefreshCw, Zap, Bot, User, ChevronRight, Info
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useWellnessData } from '@/hooks/useWellnessData';
+import { useRouter } from 'next/navigation';
 import TelegramWebApp from '@twa-dev/sdk';
 
-const API_URL = "https://nafas-backend.onrender.com";
+const API_URL = "https://nafas-jur5.onrender.com";
 
 export default function AIContent() {
+  const router = useRouter();
+  const { healthProfile, isLoaded } = useWellnessData();
+  
   const [messages, setMessages] = useState([
     { 
       role: 'ai', 
-      content: "Hello! I'm Nafas AI, your UAE wellness coach. How can I help you today? Ask me about yoga, endurance, dental care, or any goal." 
+      content: "Protocol AI online. Your bio-identity has been indexed. How shall we optimize your wellness architecture today?",
+      action: null 
     }
   ]);
+  
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [haptic, setHaptic] = useState<any>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Initialize Telegram Mini App + Haptics
+  // Auto-scroll logic
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const tg = TelegramWebApp;
-      tg.ready();
-      tg.expand();
-      setHaptic(tg.HapticFeedback);
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, []);
+  }, [messages, isLoading]);
 
-  // Auto-scroll to bottom when new message arrives
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  const handleSend = async (forcedInput?: string) => {
+    const textToSend = forcedInput || input;
+    if (!textToSend.trim() || isLoading) return;
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
-
-    const userMsg = { role: 'user', content: input };
+    const userMsg = { role: 'user', content: textToSend, action: null };
     setMessages(prev => [...prev, userMsg]);
-    
-    const currentInput = input.trim();
     setInput("");
     setIsLoading(true);
 
-    // Haptic feedback on send
-    haptic?.impactOccurred('light');
-
     try {
+      // POST with Bio-Data context
       const response = await fetch(`${API_URL}/recommend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          goal: currentInput, 
-          location: "Dubai"  // You can make this dynamic later from user profile
+          goal: textToSend, 
+          location: "Dubai",
+          profile: healthProfile // Sending weight, height, ethnicity, smoking status
         }),
       });
       
+      if (!response.ok) throw new Error("Cold Start");
+
       const data = await response.json();
       
-      let aiContent = "";
-      
-      if (data.status === "success" && data.recommendations?.length > 0) {
+      if (data.status === "success" && data.recommendations.length > 0) {
         const rec = data.recommendations[0];
+        const aiResponseContent = `✨ **Protocol Recommendation**\n\n${rec.detail}\n\n**Benefit:** ${rec.benefit}`;
         
-        if (data.ai_mode) {
-          // Live AI response with weather
-          aiContent = `✨ ${rec.topic || 'Smart Recommendation'}\n\n` +
-                      `${rec.detail}\n\n` +
-                      `💡 Safety Tip: ${rec.benefit}\n\n` +
-                      `🌡️ ${data.weather || 'UAE conditions considered'}`;
-        } else {
-          // Fallback mode
-          aiContent = `✨ ${rec.pose || rec.topic || 'Recommendation'}\n\n` +
-                      `${rec.secret || 'Tip'}: ${rec.detail || rec.benefit}`;
+        // --- SMART NAVIGATION LOGIC ---
+        let smartAction = null;
+        if (data.redirect_hint === 'yoga') {
+            smartAction = { label: 'Enter Yoga Protocol', target: '/?tab=yoga' };
+        } else if (data.redirect_hint === 'run' || data.redirect_hint === 'walk') {
+            smartAction = { label: 'Initialize Tracker', target: '/?tab=run' };
+        } else if (data.redirect_hint === 'breath') {
+            smartAction = { label: 'Start Box Breath', target: '/?tab=breath' };
         }
-      } else {
-        aiContent = "I'm having trouble connecting right now. Please try again in a moment.";
+
+        setMessages(prev => [...prev, { 
+            role: 'ai', 
+            content: aiResponseContent, 
+            action: smartAction 
+        }]);
       }
-
-      // Add AI response
-      setMessages(prev => [...prev, { role: 'ai', content: aiContent }]);
-      
-      // Haptic success on reply
-      haptic?.notificationOccurred('success');
-
     } catch (error) {
-      console.error("AI request failed:", error);
+      // Handling Render's Free Tier "Cold Start"
       setMessages(prev => [...prev, { 
         role: 'ai', 
-        content: "Backend is waking up... please try again in a few seconds. 🌬️" 
+        content: "Nafas Protocol Node is waking up (Cold Start). The desert winds are shifting. Please retry in 10 seconds.",
+        action: { label: 'Retry Transmission', retry: true, text: textToSend }
       }]);
-      haptic?.notificationOccurred('error');
     } finally {
       setIsLoading(false);
     }
   };
 
+  if (!isLoaded) return null;
+
   return (
-    <div className="flex flex-col h-[calc(100vh-120px)] p-4 bg-gradient-to-b from-sky-50 to-white">
-      {/* Chat Messages Area */}
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2 scrollbar-hide">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`p-4 rounded-3xl max-w-[85%] shadow-sm ${
-              m.role === 'user' 
-                ? 'bg-emerald-500 text-white rounded-br-none' 
-                : 'bg-white text-slate-800 rounded-bl-none border border-slate-100'
-            }`}>
-              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                {m.content}
-              </pre>
-            </div>
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white p-4 rounded-3xl rounded-bl-none border border-slate-100 flex items-center gap-3">
-              <Loader2 className="animate-spin text-emerald-500" size={20} />
-              <span className="text-slate-500 text-sm">Nafas is thinking...</span>
-            </div>
-          </div>
-        )}
-        
-        <div ref={chatEndRef} />
-      </div>
+    <div className="flex flex-col h-[calc(100vh-100px)] bg-transparent overflow-hidden">
       
-      {/* Input Area */}
-      <div className="flex gap-2 bg-white p-2 rounded-3xl shadow-lg border border-slate-100">
-        <input 
-          className="flex-1 p-4 pl-5 outline-none text-sm bg-transparent placeholder:text-slate-400"
-          value={input} 
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleSend()}
-          placeholder="Ask about yoga in heat, quitting smoking, or endurance runs..."
-          disabled={isLoading}
-        />
-        <button 
-          onClick={handleSend} 
-          disabled={!input.trim() || isLoading}
-          className="bg-emerald-500 p-4 rounded-2xl text-white active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <Loader2 size={20} className="animate-spin" />
-          ) : (
-            <Send size={20} />
-          )}
-        </button>
+      {/* 1. AI STATUS HEADER */}
+      <div className="flex flex-col items-center py-6 bg-white/20 backdrop-blur-md border-b border-white/10">
+        <div className="relative">
+            <div className="w-16 h-16 bg-slate-900 rounded-[1.5rem] flex items-center justify-center shadow-2xl border border-white/20">
+                <Brain className="text-emerald-400 animate-pulse" size={28} />
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-lg" />
+        </div>
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mt-4">Neural Protocol Coach</p>
       </div>
 
-      {/* Subtle footer hint */}
-      <div className="text-center mt-3">
-        <p className="text-[10px] text-slate-400 flex items-center justify-center gap-1">
-          <ThermometerSun size={12} /> UAE weather-aware • Powered by Nafas AI
-        </p>
+      {/* 2. CHAT FEED */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-6 p-6 scrollbar-hide">
+        <AnimatePresence initial={false}>
+          {messages.map((m, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div className={`flex flex-col max-w-[85%] ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                <div className={`p-5 rounded-[2.2rem] shadow-sm border ${
+                  m.role === 'user' 
+                    ? 'bg-slate-900 text-white border-white/10 rounded-br-none' 
+                    : 'bg-white/80 backdrop-blur-md text-slate-800 border-white/40 rounded-bl-none'
+                }`}>
+                  <p className="text-sm font-medium leading-relaxed whitespace-pre-wrap">{m.content}</p>
+                </div>
+
+                {/* SMART REDIRECT BUTTONS */}
+                {m.action && (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                        if ((m.action as any).retry) handleSend((m.action as any).text);
+                        else router.push((m.action as any).target);
+                    }}
+                    className={`mt-3 px-6 py-3.5 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl transition-all ${
+                        (m.action as any).retry ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white'
+                    }`}
+                  >
+                    {(m.action as any).retry ? <RefreshCw size={14}/> : <Zap size={14} fill="white"/>}
+                    {m.action.label}
+                  </motion.button>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+        
+        {isLoading && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+            <div className="bg-white/40 backdrop-blur-sm p-4 rounded-2xl flex items-center gap-3 border border-white/20">
+              <Loader2 className="animate-spin text-emerald-500" size={16} />
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Parsing Bio-Identity...</span>
+            </div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* 3. INPUT ZONE */}
+      <div className="p-6 pb-10 bg-white/20 backdrop-blur-xl border-t border-white/10">
+        <div className="glass-card p-2 rounded-[2.5rem] flex items-center gap-2 border-white/60 shadow-2xl bg-white/80">
+            <input 
+              disabled={isLoading}
+              className="flex-1 p-4 pl-6 outline-none text-sm font-bold bg-transparent placeholder-slate-300 text-slate-800"
+              value={input} 
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSend()}
+              placeholder="Query the Protocol..."
+            />
+            <motion.button 
+              whileTap={{ scale: 0.85 }}
+              onClick={() => handleSend()} 
+              disabled={isLoading || !input.trim()}
+              className="bg-slate-900 text-white p-4 rounded-[1.8rem] shadow-xl disabled:bg-slate-200 disabled:text-slate-400 transition-all"
+            >
+              <Send size={20} fill={isLoading ? "none" : "currentColor"} />
+            </motion.button>
+        </div>
+        <div className="mt-4 flex justify-center gap-4">
+             <span className="text-[8px] font-black text-slate-400 uppercase flex items-center gap-1 opacity-50"><Info size={10}/> End-to-End Encrypted</span>
+             <span className="text-[8px] font-black text-slate-400 uppercase flex items-center gap-1 opacity-50"><Bot size={10}/> Bio-Adaptive AI</span>
+        </div>
       </div>
     </div>
   );
