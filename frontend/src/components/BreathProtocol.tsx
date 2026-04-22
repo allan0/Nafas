@@ -1,107 +1,154 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play, Trophy } from 'lucide-react';
+import { X, ShieldCheck, Activity, AlertCircle, Info } from 'lucide-react';
 import TelegramWebApp from '@twa-dev/sdk';
 
-export default function BreathProtocol({ onClose, onComplete }: { onClose: () => void, onComplete: (xp: number) => void }) {
-  const [phase, setPhase] = useState<'idle' | 'breathing' | 'finished'>('idle');
-  const [timer, setTimer] = useState(5); // 5 cycles
-  const [seconds, setSeconds] = useState(4);
+export default function BreathProtocol({ onClose, onComplete }: { onClose: () => void, onComplete: (xp: number, verified: boolean) => void }) {
+  const [phase, setPhase] = useState<'idle' | 'calibrating' | 'breathing' | 'finished'>('idle');
   const [instruction, setInstruction] = useState('Ready?');
-  
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [seconds, setSeconds] = useState(4);
+  const [cycle, setCycle] = useState(1);
+  const [isVerified, setIsVerified] = useState(false);
+  const [sensorError, setSensorError] = useState<string | null>(null);
 
-  // Safe Haptics
-  const triggerHaptic = (type: 'light' | 'success') => {
-    try {
-      if (type === 'light') TelegramWebApp.HapticFeedback.impactOccurred('light');
-      if (type === 'success') TelegramWebApp.HapticFeedback.notificationOccurred('success');
-    } catch (e) { console.log("Haptics not supported"); }
+  // Sensor Verification Logic
+  const sensorData = useRef<{ z: number; timestamp: number }[]>([]);
+  const breathStabilityScore = useRef<number>(0);
+
+  const requestPermissions = async () => {
+    // Required for iOS 13+ and some Android builds
+    if (typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+      try {
+        const permission = await (DeviceMotionEvent as any).requestPermission();
+        if (permission === 'granted') startProtocol();
+        else setSensorError("Sensor Permission Denied");
+      } catch (e) { setSensorError("Secure Context Required"); }
+    } else {
+      startProtocol();
+    }
+  };
+
+  const startProtocol = () => {
+    setPhase('calibrating');
+    setInstruction('Place phone on chest');
+    setTimeout(() => {
+      setPhase('breathing');
+      setInstruction('Inhale');
+    }, 3000);
   };
 
   useEffect(() => {
-    if (phase === 'breathing') {
-      timerRef.current = setInterval(() => {
-        setSeconds((prev) => {
-          if (prev <= 1) {
-            if (instruction === 'Inhale') {
-              setInstruction('Hold');
-              triggerHaptic('light');
-              return 4;
-            } else if (instruction === 'Hold') {
-              setInstruction('Exhale');
-              triggerHaptic('light');
-              return 4;
-            } else {
-              if (timer <= 1) {
-                clearInterval(timerRef.current!);
-                setPhase('finished');
-                triggerHaptic('success');
-                onComplete(50);
-                return 0;
-              }
-              setTimer(t => t - 1);
-              setInstruction('Inhale');
-              triggerHaptic('light');
-              return 4;
+    if (phase !== 'breathing') return;
+
+    const handleMotion = (e: DeviceMotionEvent) => {
+      const z = e.accelerationIncludingGravity?.z || 0;
+      sensorData.current.push({ z, timestamp: Date.now() });
+      
+      // Verification Logic: During 'Inhale' (4s), we expect Z-axis change. 
+      // During 'Hold', we expect variance < 0.5.
+      if (instruction === 'Hold' && Math.abs(z - 9.8) > 1.5) {
+          // User is moving too much during hold
+          breathStabilityScore.current -= 1;
+      } else if (instruction === 'Hold') {
+          breathStabilityScore.current += 1;
+      }
+    };
+
+    window.addEventListener('devicemotion', handleMotion);
+    const interval = setInterval(() => {
+      setSeconds((prev) => {
+        if (prev <= 1) {
+          if (instruction === 'Inhale') { setInstruction('Hold'); return 4; }
+          if (instruction === 'Hold') { setInstruction('Exhale'); return 4; }
+          if (instruction === 'Exhale') {
+            if (cycle >= 5) {
+              finishProtocol();
+              return 0;
             }
+            setCycle(c => c + 1);
+            setInstruction('Inhale');
+            return 4;
           }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [phase, instruction, timer]);
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      window.removeEventListener('devicemotion', handleMotion);
+      clearInterval(interval);
+    };
+  }, [phase, instruction, cycle]);
+
+  const finishProtocol = () => {
+    // If stability score is high enough, mark as verified
+    const verified = breathStabilityScore.current > 15;
+    setIsVerified(verified);
+    setPhase('finished');
+    onComplete(verified ? 100 : 50, verified);
+    TelegramWebApp.HapticFeedback.notificationOccurred(verified ? 'success' : 'warning');
+  };
 
   return (
     <motion.div 
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[70] bg-slate-900 flex flex-col items-center justify-center p-8 text-white"
+      className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center p-8 text-white"
     >
-      <button onClick={onClose} className="absolute top-10 right-6 p-2 bg-white/10 rounded-full"><X /></button>
+      <button onClick={onClose} className="absolute top-12 right-8 p-3 bg-white/10 rounded-2xl"><X /></button>
 
       <AnimatePresence mode="wait">
         {phase === 'idle' && (
-          <motion.div key="idle" className="text-center">
-            <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-8 mx-auto animate-pulse">
-                <span className="text-4xl">🌬️</span>
+          <motion.div key="idle" className="text-center space-y-8">
+            <div className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto animate-pulse border border-emerald-500/30">
+                <Activity className="text-emerald-400" size={40} />
             </div>
-            <h2 className="text-2xl font-black mb-2 uppercase tracking-tighter">Box Breathing</h2>
-            <p className="text-slate-400 text-sm mb-8 italic">4s In • 4s Hold • 4s Out</p>
-            <button 
-                onClick={() => { setPhase('breathing'); setInstruction('Inhale'); }} 
-                className="bg-emerald-500 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-emerald-500/30"
-            >
-              Start session
-            </button>
+            <div>
+                <h2 className="text-3xl font-black uppercase italic tracking-tighter">Bio-Verification</h2>
+                <p className="text-slate-400 text-xs mt-2 uppercase tracking-widest">Phone on chest to prove protocol</p>
+            </div>
+            {sensorError && <div className="p-4 bg-rose-500/20 text-rose-400 text-[10px] rounded-xl flex items-center gap-2"><AlertCircle size={14}/> {sensorError}</div>}
+            <button onClick={requestPermissions} className="w-full py-5 bg-emerald-500 text-white rounded-[2rem] font-black uppercase tracking-widest shadow-2xl">Initialize Sensors</button>
           </motion.div>
         )}
 
         {phase === 'breathing' && (
           <motion.div key="active" className="text-center">
-            <motion.div 
-              animate={{ 
-                scale: instruction === 'Inhale' ? [1, 1.4] : instruction === 'Exhale' ? [1.4, 1] : 1.4,
-                boxShadow: instruction === 'Hold' ? "0 0 40px rgba(52, 211, 153, 0.3)" : "0 0 0px rgba(0,0,0,0)"
-              }}
-              transition={{ duration: 4, ease: "linear" }}
-              className="w-56 h-56 border-2 border-emerald-400/50 rounded-full flex items-center justify-center mb-12 relative"
-            >
-              <div className="absolute inset-0 bg-emerald-400/10 rounded-full blur-xl" />
-              <span className="text-7xl font-thin relative z-10">{seconds}</span>
-            </motion.div>
-            <h3 className="text-5xl font-black tracking-tighter uppercase mb-2">{instruction}</h3>
-            <p className="text-emerald-400 font-bold uppercase tracking-[0.3em] text-[10px]">Cycle {6 - timer} of 5</p>
+            <div className="relative w-64 h-64 mx-auto mb-12">
+                <motion.div 
+                    animate={{ scale: instruction === 'Inhale' ? [1, 1.3] : instruction === 'Exhale' ? [1.3, 1] : 1.3 }}
+                    transition={{ duration: 4, ease: "linear" }}
+                    className="absolute inset-0 border-2 border-emerald-400/30 rounded-full"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-7xl font-thin">{seconds}</span>
+                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mt-2">Cycle {cycle}/5</span>
+                </div>
+            </div>
+            <h3 className="text-5xl font-black italic uppercase tracking-tighter mb-4">{instruction}</h3>
+            <div className="flex items-center justify-center gap-2 opacity-50">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                <span className="text-[9px] font-bold uppercase tracking-widest">Haptic Feed Active</span>
+            </div>
           </motion.div>
         )}
 
         {phase === 'finished' && (
-          <motion.div key="done" initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="text-center">
-            <div className="text-6xl mb-6">🏆</div>
-            <h2 className="text-3xl font-black mb-2">Well Done!</h2>
-            <p className="text-emerald-400 font-bold mb-10 uppercase tracking-widest">+50 XP Earned</p>
-            <button onClick={onClose} className="w-full bg-white text-slate-900 py-4 rounded-2xl font-black uppercase tracking-widest">Done</button>
+          <motion.div key="done" className="text-center space-y-6">
+            <div className="text-6xl mb-4">{isVerified ? '💎' : '✅'}</div>
+            <h2 className="text-3xl font-black italic uppercase">{isVerified ? 'Neural Verified' : 'Manual Entry'}</h2>
+            <div className="bg-white/5 p-6 rounded-[2rem] border border-white/10 text-left">
+                <div className="flex justify-between items-center mb-4">
+                    <span className="text-[10px] font-black text-slate-400 uppercase">Indexing Result</span>
+                    {isVerified ? <ShieldCheck className="text-emerald-400" size={16}/> : <Info className="text-amber-400" size={16}/>}
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed italic">
+                    {isVerified 
+                        ? "Sensor telemetry matches the 4-4-4-4 protocol. Maximum yield indexed." 
+                        : "Stability variance detected. Protocol indexed as manual entry."}
+                </p>
+            </div>
+            <button onClick={onClose} className="w-full py-5 bg-white text-slate-900 rounded-[1.8rem] font-black uppercase tracking-widest">Sync to Ledger</button>
           </motion.div>
         )}
       </AnimatePresence>

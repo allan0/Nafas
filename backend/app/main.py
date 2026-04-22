@@ -1,14 +1,17 @@
 import os
 import json
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
+from app.core.ai_logic import NafasProAI
 
-app = FastAPI(title="Nafas Protocol AI Node")
+app = FastAPI(title="Nafas Protocol AI Node - DXB-01")
+
+# Initialize the Neural Engine
+ai_engine = NafasProAI()
 
 # --- CORS CONFIGURATION ---
-# Allows your Vercel frontend and Telegram environment to communicate securely
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,67 +20,98 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- PROTOCOL KNOWLEDGE BASE (Simulated RAG) ---
-# High-fidelity UAE-specific wellness secrets indexed by category
-KNOWLEDGE_BASE = {
-    "yoga": {
-        "material": "Sitali Pranayama (Cooling Breath) & Vrikshasana (Grounding).",
-        "redirect": "yoga",
-        "secrets": [
-            "UAE Secret: Practice Sitali by curling the tongue to lower core temperature during high-humidity months.",
-            "Pose Logic: Tree pose (Vrikshasana) resets the vestibular system after long desert commutes."
-        ]
-    },
-    "smoking": {
-        "material": "Box Breathing (4-4-4-4) Vagus Nerve Stimulation.",
-        "redirect": "breath",
-        "secrets": [
-            "The Haptic Hit: Cravings peak at 3 minutes. Mimic the deep inhalation of smoking with O2 to release dopamine naturally.",
-            "Protocol: When the urge hits, perform 5 cycles of Box Breath to stabilize heart rate variability."
-        ]
-    },
-    "endurance": {
-        "material": "Zone 2 Maffetone Training (Heart Rate = 180 - Age).",
-        "redirect": "run",
-        "secrets": [
-            "Mitochondrial Density: Running in UAE heat requires a lower aerobic ceiling to prevent oxidative stress.",
-            "Breath Sync: Use the 2:2 rhythm (2 steps inhale, 2 steps exhale) to prevent diaphragm cramping."
-        ]
-    },
-    "weight_loss": {
-        "material": "Circadian Fasting & Thermogenic Spices.",
-        "redirect": "walk",
-        "secrets": [
-            "Local Hack: Add fresh Ginger and Turmeric to Arabic coffee to boost thermogenesis in sedentary office environments.",
-            "Window: Align meal times with local sunlight cycles to reset insulin sensitivity."
-        ]
-    }
-}
+# --- DATA MODELS FOR NEURAL INDEXING ---
 
-# --- DATA MODELS ---
+class ActivityLog(BaseModel):
+    type: str
+    title: str
+    xp: int
+    date: str
+    value: Optional[str] = None
+
+class HabitStats(BaseModel):
+    dailyWater: int
+    dailyCigs: int
+    fruitHabit: int
+
 class UserProfile(BaseModel):
-    bodyType: Optional[str] = ""
-    weight: Optional[str] = ""
-    height: Optional[str] = ""
-    ethnicity: Optional[str] = ""
-    smokingHabit: Optional[int] = 0
+    bodyType: Optional[str] = "Not specified"
+    weight: Optional[str] = "70"
+    height: Optional[str] = "170"
+    ethnicity: Optional[str] = "Global"
+    age: Optional[str] = "30"
 
 class UserQuery(BaseModel):
     goal: str
+    profile: UserProfile
+    habits: HabitStats
+    history: List[ActivityLog]
     location: str = "Dubai"
-    profile: Optional[UserProfile] = None
+
+# --- UTILS ---
+
+def get_uae_weather(location: str):
+    """
+    In production, this would call an API. 
+    Currently returns typical UAE summer/shoulder season values.
+    """
+    return {"temp": 38.5, "humidity": 65}
 
 # --- API ROUTES ---
 
-@app.get("/")
 @app.get("/health")
 async def health_check():
-    return {"status": "Protocol Online", "node": "UAE-DXB-01"}
+    return {
+        "status": "Protocol Online",
+        "neural_engine": "Ready",
+        "node": "UAE-DXB-01"
+    }
+
+@app.post("/recommend")
+async def ai_recommender(query: UserQuery):
+    """
+    The main processing node. 
+    Converts user identity and behavior into a specific wellness protocol.
+    """
+    try:
+        # 1. Get Environmental Context
+        weather = get_uae_weather(query.location)
+        
+        # 2. Extract and sanitize history for AI (Limit to last 10 for token efficiency)
+        history_list = [h.dict() for h in query.history[-10:]]
+        
+        # 3. Call the Logic Engine
+        # This performs the RAG search and the Bio-Contextual Analysis
+        raw_ai_response = ai_engine.generate_smart_recommendation(
+            goal=query.goal,
+            temp=weather["temp"],
+            humidity=weather["humidity"],
+            user_profile=query.profile.dict(),
+            habits=query.habits.dict(),
+            activity_history=history_list
+        )
+
+        # 4. Parse JSON string from AI into a dict
+        structured_response = json.loads(raw_ai_response)
+        
+        return {
+            "status": "success",
+            "data": structured_response,
+            "meta": {
+                "weather_context": weather,
+                "node": "UAE-DXB-01"
+            }
+        }
+
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail="AI produced malformed protocol data.")
+    except Exception as e:
+        print(f"Error in recommendation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/nearby")
-@app.get("/nearby/")
 async def get_nearby_hubs():
-    """Returns real UAE wellness and recreation centers for GPS filtering."""
+    """Returns official UAE wellness points for GPS mapping."""
     return {
         "spots": [
             {"name": "Kite Beach Courts", "lat": 25.164, "lng": 55.201, "activity": "Beach/Sports"},
@@ -85,52 +119,6 @@ async def get_nearby_hubs():
             {"name": "Al Qudra Cycle Hub", "lat": 24.830, "lng": 55.376, "activity": "Endurance"},
             {"name": "Mushrif Forest", "lat": 25.215, "lng": 55.454, "activity": "Walking"},
             {"name": "Hamdan Sports Center", "lat": 25.043, "lng": 55.312, "activity": "Swimming"},
-            {"name": "JBR Outdoor Crossfit", "lat": 25.071, "lng": 55.135, "activity": "Fitness"},
-            {"name": "Skydive Dubai Track", "lat": 25.091, "lng": 55.138, "activity": "Sprints"}
+            {"name": "JBR Outdoor Crossfit", "lat": 25.071, "lng": 55.135, "activity": "Fitness"}
         ]
-    }
-
-@app.post("/recommend")
-async def ai_recommender(query: UserQuery):
-    """The brain of the system. Processes goals based on physical bio-identity."""
-    goal = query.goal.lower()
-    profile = query.profile
-    
-    # Matching Engine
-    category = None
-    if any(word in goal for word in ["yoga", "stretch", "flexible"]): category = "yoga"
-    elif any(word in goal for word in ["smoke", "quit", "cigar"]): category = "smoking"
-    elif any(word in goal for word in ["run", "race", "endurance"]): category = "endurance"
-    elif any(word in goal for word in ["fat", "weight", "diet", "meal"]): category = "weight_loss"
-
-    if category:
-        base = KNOWLEDGE_BASE[category]
-        advice = base["secrets"]
-        
-        # Tailor advice based on Profile
-        p_context = ""
-        if profile:
-            if profile.smokingHabit > 10 and category == "endurance":
-                p_context = "CRITICAL: Given your high combustion levels, focus exclusively on Nasal Breathing to protect lung tissue."
-            elif profile.bodyType == "Endomorph" and category == "weight_loss":
-                p_context = "Bio-Note: Your morphology responds best to fasted morning walks before the 10AM heat peak."
-
-        return {
-            "status": "success",
-            "recommendations": [{
-                "title": base["material"],
-                "detail": f"{p_context} {advice[0]}",
-                "benefit": advice[1]
-            }],
-            "redirect_hint": base["redirect"] # Tells frontend which tab to highlight
-        }
-    
-    return {
-        "status": "success",
-        "recommendations": [{
-            "title": "Protocol Neutral",
-            "detail": "Nafas AI is indexing your specific query. For now, focus on conscious hydration.",
-            "benefit": "Consistency is the primary mining metric."
-        }],
-        "redirect_hint": None
     }

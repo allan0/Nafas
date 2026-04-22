@@ -1,36 +1,38 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Brain, RefreshCw, Zap, Info, Bot } from 'lucide-react';
+import { Send, Loader2, Brain, RefreshCw, Zap, Info, Bot, MapPin, ShieldAlert, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWellnessData } from '@/hooks/useWellnessData';
 import { useRouter } from 'next/navigation';
+import TelegramWebApp from '@twa-dev/sdk';
 
-// --- STRICT TYPES FOR BUILD SAFETY ---
-interface ChatAction {
-  label: string;
-  target?: string;
-  retry?: boolean;
-  retryText?: string;
+// --- RESPONSE SCHEMA ---
+interface AIProtocolResponse {
+  analysis: string;
+  title: string;
+  plan: string;
+  safety_tip: string;
+  uae_location: string;
+  redirect_hint: 'yoga' | 'run' | 'breath' | 'weight_loss' | null;
 }
 
 interface Message {
   role: 'ai' | 'user';
-  content: string;
-  action: ChatAction | null;
+  content?: string;
+  protocol?: AIProtocolResponse; // New structured field
 }
 
 const API_URL = "https://nafas-jur5.onrender.com";
 
 export default function AIContent() {
   const router = useRouter();
-  const { healthProfile, isLoaded } = useWellnessData();
+  const { getBioSummary, isLoaded } = useWellnessData();
   
   const [messages, setMessages] = useState<Message[]>([
     { 
       role: 'ai', 
       content: "Protocol AI online. Bio-identity indexed. How shall we optimize your wellness architecture today?",
-      action: null 
     }
   ]);
   
@@ -39,17 +41,17 @@ export default function AIContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isLoading]);
 
   const handleSend = async (forcedText?: string) => {
     const textToSend = forcedText || input;
     if (!textToSend.trim() || isLoading) return;
 
-    // 1. Add User Message
-    const userMsg: Message = { role: 'user', content: textToSend, action: null };
+    // 1. Package Bio-Twin Context
+    const bioContext = getBioSummary();
+
+    const userMsg: Message = { role: 'user', content: textToSend };
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
@@ -60,39 +62,28 @@ export default function AIContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           goal: textToSend, 
-          profile: healthProfile // Sends Height, Weight, Ethnicity, Smoking
+          ...bioContext, // Spreads profile, habits, and history
+          location: "Dubai"
         }),
       });
       
-      if (!response.ok) throw new Error("Cold Start");
+      if (!response.ok) throw new Error("Connection Error");
 
-      const data = await response.json();
+      const result = await response.json();
       
-      if (data.status === "success" && data.recommendations.length > 0) {
-        const rec = data.recommendations[0];
-        const aiContent = `✨ **Protocol Insight**\n\n${rec.detail}\n\n**Benefit:** ${rec.benefit}`;
-        
-        // 2. Map Redirects from Backend hints
-        let smartAction: ChatAction | null = null;
-        if (data.redirect_hint === 'yoga') {
-            smartAction = { label: 'Enter Yoga Hub', target: '/?tab=yoga' };
-        } else if (data.redirect_hint === 'run' || data.redirect_hint === 'walk') {
-            smartAction = { label: 'Launch Tracker', target: '/?tab=run' };
-        } else if (data.redirect_hint === 'breath') {
-            smartAction = { label: 'Start Breath Protocol', target: '/?tab=breath' };
-        }
-
-        const aiMsg: Message = { role: 'ai', content: aiContent, action: smartAction };
+      if (result.status === "success") {
+        const aiMsg: Message = { 
+            role: 'ai', 
+            protocol: result.data // Structured AI Data
+        };
         setMessages(prev => [...prev, aiMsg]);
+        TelegramWebApp.HapticFeedback.notificationOccurred('success');
       }
     } catch (error) {
-      // 3. Handle Backend Waking Up (Cold Start)
-      const errorMsg: Message = { 
+      setMessages(prev => [...prev, { 
         role: 'ai', 
-        content: "Nafas Node is waking up. The protocol connection is being restored. Please retry in 10 seconds.",
-        action: { label: 'Retry Transmission', retry: true, retryText: textToSend }
-      };
-      setMessages(prev => [...prev, errorMsg]);
+        content: "Neural Node is waking up. Please retry in a few seconds." 
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -103,19 +94,17 @@ export default function AIContent() {
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] overflow-hidden bg-transparent">
       
-      {/* AI HEADER */}
-      <div className="flex flex-col items-center py-6 bg-white/20 backdrop-blur-md border-b border-white/10">
-        <div className="relative">
-            <div className="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center shadow-2xl border border-emerald-500/20">
-                <Brain className="text-emerald-400 animate-pulse" size={28} />
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white shadow-sm" />
+      {/* AI STATUS HEADER */}
+      <div className="flex flex-col items-center py-4 bg-white/20 backdrop-blur-md border-b border-white/10">
+        <div className="flex items-center gap-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span className="text-[8px] font-black text-emerald-600 uppercase tracking-widest">Bio-Sync Active</span>
         </div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-4 italic">Neural Protocol Engine</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em] mt-3 italic">Neural Protocol Engine</p>
       </div>
 
       {/* MESSAGE FEED */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-6 p-6 scrollbar-hide">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-6 p-6 scrollbar-hide pb-20">
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (
             <motion.div 
@@ -124,30 +113,66 @@ export default function AIContent() {
               animate={{ opacity: 1, y: 0 }}
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`flex flex-col max-w-[85%] ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div className={`p-5 rounded-[2.2rem] text-sm font-medium leading-relaxed shadow-sm border ${
-                  m.role === 'user' 
-                    ? 'bg-slate-900 text-white border-white/10 rounded-br-none' 
-                    : 'bg-white/80 backdrop-blur-md text-slate-800 border-white/40 rounded-bl-none'
-                }`}>
-                  <p className="whitespace-pre-wrap">{m.content}</p>
-                </div>
+              <div className={`flex flex-col max-w-[90%] ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
+                
+                {/* 1. Standard Text Message */}
+                {m.content && (
+                    <div className={`p-5 rounded-[2rem] text-sm font-medium leading-relaxed shadow-sm border ${
+                    m.role === 'user' 
+                        ? 'bg-slate-900 text-white border-white/10 rounded-br-none' 
+                        : 'bg-white/80 backdrop-blur-md text-slate-800 border-white/40 rounded-bl-none'
+                    }`}>
+                        <p>{m.content}</p>
+                    </div>
+                )}
 
-                {/* ACTION BUTTONS (SMART REDIRECTS) */}
-                {m.action && (
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                        if (m.action?.retry) handleSend(m.action.retryText);
-                        else router.push(m.action?.target || '/');
-                    }}
-                    className={`mt-3 px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-2xl transition-all ${
-                        m.action.retry ? 'bg-amber-500 text-white' : 'bg-emerald-500 text-white shadow-emerald-500/20'
-                    }`}
-                  >
-                    {m.action.retry ? <RefreshCw size={14}/> : <Zap size={14} fill="white"/>}
-                    {m.action.label}
-                  </motion.button>
+                {/* 2. Structured Protocol Card */}
+                {m.protocol && (
+                    <div className="bg-white rounded-[2.5rem] overflow-hidden border border-slate-100 shadow-2xl">
+                        <div className="bg-slate-900 p-6">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Sparkles className="text-emerald-400" size={14} />
+                                <span className="text-[9px] font-black text-emerald-400 uppercase tracking-[0.2em]">Personalized Protocol</span>
+                            </div>
+                            <h3 className="text-xl font-black text-white italic uppercase tracking-tighter">{m.protocol.title}</h3>
+                        </div>
+                        
+                        <div className="p-6 space-y-6">
+                            {/* Bio-Analysis */}
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-1"><Brain size={12}/> AI Bio-Analysis</p>
+                                <p className="text-xs text-slate-600 font-medium italic leading-relaxed">"{m.protocol.analysis}"</p>
+                            </div>
+
+                            {/* The Plan */}
+                            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                                <p className="text-[10px] font-black text-slate-900 uppercase mb-3">Execution Steps</p>
+                                <p className="text-xs text-slate-700 leading-relaxed font-bold">{m.protocol.plan}</p>
+                            </div>
+
+                            {/* Safety & UAE Location */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
+                                    <p className="text-[8px] font-black text-rose-500 uppercase mb-1 flex items-center gap-1"><ShieldAlert size={10}/> Safety</p>
+                                    <p className="text-[10px] font-bold text-rose-700 leading-tight">{m.protocol.safety_tip}</p>
+                                </div>
+                                <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                    <p className="text-[8px] font-black text-blue-500 uppercase mb-1 flex items-center gap-1"><MapPin size={10}/> UAE Spot</p>
+                                    <p className="text-[10px] font-bold text-blue-700 leading-tight">{m.protocol.uae_location}</p>
+                                </div>
+                            </div>
+
+                            {/* Smart Redirect */}
+                            {m.protocol.redirect_hint && (
+                                <button 
+                                    onClick={() => router.push(`/?tab=${m.protocol?.redirect_hint}`)}
+                                    className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                                >
+                                    Launch {m.protocol.redirect_hint} Hub
+                                </button>
+                            )}
+                        </div>
+                    </div>
                 )}
               </div>
             </motion.div>
@@ -158,7 +183,7 @@ export default function AIContent() {
           <div className="flex justify-start">
             <div className="bg-white/40 backdrop-blur-sm p-4 rounded-2xl flex items-center gap-3 border border-white/20">
               <Loader2 className="animate-spin text-emerald-500" size={16} />
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Processing Bio-Context...</span>
+              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Neural Mapping...</span>
             </div>
           </div>
         )}
@@ -183,10 +208,6 @@ export default function AIContent() {
             >
               <Send size={20} fill={isLoading ? "none" : "currentColor"} />
             </motion.button>
-        </div>
-        <div className="mt-4 flex justify-center gap-4 opacity-40">
-             <span className="text-[8px] font-black text-slate-500 uppercase flex items-center gap-1"><Info size={10}/> End-to-End Encryption</span>
-             <span className="text-[8px] font-black text-slate-500 uppercase flex items-center gap-1"><Bot size={10}/> Bio-Adaptive AI</span>
         </div>
       </div>
     </div>
